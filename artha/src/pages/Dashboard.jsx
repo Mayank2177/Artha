@@ -13,10 +13,10 @@ import {
 import CountUp from 'react-countup'
 
 import MoneyHealth from '../features/MoneyHealth.jsx'
-import FirePlanner from '../features/FirePlanner.jsx'
+import FirePlanner from '../features/Fireplanner.jsx'
 import TaxWizard from '../features/TaxWizard.jsx'
-import PortfolioXRay from '../features/PortfolioXRay.jsx'
-import CouplePlanner from '../features/CouplePlanner.jsx'
+import PortfolioXRay from '../features/PortfolioXray.jsx'
+import CouplePlanner from '../features/Coupleplanner.jsx'
 
 // ─── NAV ITEMS ───────────────────────────────────────────────────────────────
 const NAV = [

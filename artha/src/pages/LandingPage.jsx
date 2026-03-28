@@ -12,8 +12,6 @@ import {
   useAnimation,
   useInView,
   AnimatePresence,
-  useScroll,
-  useTransform,
 } from 'framer-motion'
 import CountUp from 'react-countup'
 import { useInView as useIOView } from 'react-intersection-observer'
@@ -239,27 +237,16 @@ function FloatingCard({ children, delay = 0, style = {} }) {
   return (
     <motion.div
       animate={{ y: [0, -10, 0] }}
-      whileHover={{ scale: 1.04, rotateX: 4, rotateY: -4 }} // ✅ NEW
-      transition={{
-        duration: 4,
-        repeat: Infinity,
-        ease: 'easeInOut',
-        delay
-      }}
+      transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut', delay }}
       style={{
         position: 'absolute',
         background: 'rgba(17,17,24,0.92)',
         border: '1px solid rgba(255,255,255,0.1)',
-        borderRadius: 14,
-        padding: '14px 18px',
+        borderRadius: 14, padding: '14px 18px',
         backdropFilter: 'blur(20px)',
-        display: 'flex',
-        alignItems: 'center',
-        gap: 12,
+        WebkitBackdropFilter: 'blur(20px)',
+        display: 'flex', alignItems: 'center', gap: 12,
         boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
-        transform: 'translateZ(0)', // ✅ performance
-        willChange: 'transform',
-        maxWidth: '260px', // ✅ prevents overflow
         ...style,
       }}
     >
@@ -281,8 +268,6 @@ const radarData = [
 // ─── HERO SECTION ─────────────────────────────────────────────────────────────
 function HeroSection() {
   const navigate = useNavigate()
-  const { scrollY } = useScroll()
-  const heroOp = useTransform(scrollY, [0, 350], [1, 0])
 
   return (
     <section
