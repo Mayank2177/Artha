@@ -1,0 +1,1 @@
+# QuizInput, HealthScoreResponse
