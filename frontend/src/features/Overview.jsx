@@ -2,27 +2,17 @@
 //  Overview — /dashboard (index route)
 //  Stats · Quick Insights · Jump To feature cards
 // ─────────────────────────────────────────────────────────────────────────────
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import CountUp from 'react-countup'
+import { useAuth } from '../context/AuthContext'
 import {
     Heart, Flame, FileText, BarChart3, Users,
     TrendingUp, IndianRupee, Wallet, ChevronRight,
 } from 'lucide-react'
 
-const STATS = [
-    { label: 'Money Health Score', value: 72, suffix: '/100', prefix: '', color: '#10B981', icon: Heart, change: '+4 pts this month', up: true },
-    { label: 'Net Worth', value: 18.4, suffix: 'L', prefix: '₹', color: '#F0F0F5', icon: Wallet, change: '₹1.2L growth YTD', up: true },
-    { label: 'Monthly Savings', value: 28500, suffix: '', prefix: '₹', color: '#F59E0B', icon: IndianRupee, change: '−₹2,000 vs last month', up: false },
-    { label: 'Investments', value: 12.8, suffix: 'L', prefix: '₹', color: '#10B981', icon: TrendingUp, change: 'XIRR 14.2%', up: true },
-]
-
-const INSIGHTS = [
-    { dot: '#EF4444', title: 'Biggest risk', sub: 'Emergency fund covers only 2 months — target is 6' },
-    { dot: '#F59E0B', title: 'Tax opportunity', sub: '₹25,000 savings available via 80D before March 31' },
-    { dot: '#10B981', title: 'FIRE on track', sub: 'SIP of ₹18,400/mo keeps retirement target at age 45' },
-    { dot: '#8B5CF6', title: 'Portfolio overlap alert', sub: '3 funds share identical top-10 stocks — consider merging' },
-]
+// We will build dynamic STATS and INSIGHTS from the API response
 
 const FEATURES = [
     { path: '/dashboard/health', label: 'Money Health', icon: Heart, color: '#10B981', desc: '12-question financial vitals check' },
@@ -34,6 +24,57 @@ const FEATURES = [
 
 export default function Overview() {
     const navigate = useNavigate()
+    const { user } = useAuth()
+    const firstName = user?.name?.split(' ')[0] || 'there'
+
+    const [data, setData] = useState(null)
+    const [loading, setLoading] = useState(true)
+
+    // Determine greeting based on time
+    const hour = new Date().getHours()
+    const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
+
+    useEffect(() => {
+        if (!user?.email) return
+        fetch(`http://localhost:8000/api/dashboard/${encodeURIComponent(user.email)}`)
+            .then(res => res.json())
+            .then(json => {
+                setData(json)
+                setLoading(false)
+            })
+            .catch(err => {
+                console.error("Dashboard fetch failed", err)
+                setLoading(false)
+            })
+    }, [user?.email])
+
+    if (loading || !data) {
+        return <div style={{ padding: 40, color: '#A0A0B0' }}>Loading your dashboard...</div>
+    }
+
+    // Build dynamic STATS array
+    const dynamicStats = [
+        { 
+            label: 'Money Health Score', 
+            value: data.stats.money_health_score || 0, 
+            suffix: '/100', prefix: '', color: '#10B981', icon: Heart, change: '', up: true 
+        },
+        { 
+            label: 'Net Worth', 
+            value: data.stats.net_worth, 
+            suffix: '', prefix: '₹', color: '#F0F0F5', icon: Wallet, change: 'Total tracked assets', up: true, loose: true 
+        },
+        { 
+            label: 'Monthly Savings', 
+            value: data.stats.monthly_savings, 
+            suffix: '', prefix: '₹', color: '#F59E0B', icon: IndianRupee, change: 'Target SIP needed', up: true, loose: true  
+        },
+        { 
+            label: 'Investments', 
+            value: data.stats.investments, 
+            suffix: '', prefix: '₹', color: '#10B981', icon: TrendingUp, change: `XIRR ${data.stats.xirr.toFixed(1)}%`, up: true, loose: true 
+        },
+    ]
 
     return (
         <div style={{ padding: '28px 28px 40px' }}>
@@ -49,7 +90,7 @@ export default function Overview() {
                     fontFamily: "'Playfair Display', serif",
                     fontSize: 28, fontWeight: 800, letterSpacing: '-0.5px', marginBottom: 4,
                 }}>
-                    Good morning, Arjun.
+                    {greeting}, {firstName}.
                 </h1>
                 <p style={{ fontSize: 13, color: '#9A9AAD' }}>
                     Your financial command center — last updated today.
@@ -58,7 +99,7 @@ export default function Overview() {
 
             {/* ── Stat cards ── */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 22 }}>
-                {STATS.map((s, i) => {
+                {dynamicStats.map((s, i) => {
                     const Icon = s.icon
                     return (
                         <motion.div
@@ -94,14 +135,18 @@ export default function Overview() {
                                 fontSize: 30, fontWeight: 800, color: s.color,
                                 lineHeight: 1, fontVariantNumeric: 'tabular-nums', marginBottom: 8,
                             }}>
-                                <CountUp
-                                    end={s.value} duration={1.4}
-                                    decimals={s.suffix === 'L' ? 1 : 0}
-                                    prefix={s.prefix}
-                                    suffix={s.suffix}
-                                    separator=","
-                                    useEasing
-                                />
+                                {s.loose ? (
+                                    <>{s.prefix}{Math.round(s.value).toLocaleString()}{s.suffix}</>
+                                ) : (
+                                    <CountUp
+                                        end={s.value} duration={1.4}
+                                        decimals={s.value % 1 !== 0 ? 1 : 0}
+                                        prefix={s.prefix}
+                                        suffix={s.suffix}
+                                        separator=","
+                                        useEasing
+                                    />
+                                )}
                             </p>
                             <p style={{ fontSize: 11, color: s.up ? '#10B981' : '#EF4444' }}>
                                 {s.up ? '↑' : '↓'} {s.change}
@@ -129,7 +174,7 @@ export default function Overview() {
                         QUICK INSIGHTS
                     </p>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                        {INSIGHTS.map((ins, i) => (
+                        {data.insights.map((ins, i) => (
                             <motion.div
                                 key={i}
                                 initial={{ opacity: 0, x: -10 }}

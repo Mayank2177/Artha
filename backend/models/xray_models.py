@@ -39,6 +39,7 @@ class XRayInput(BaseModel):
     The file upload endpoint extracts text, then passes it here.
     """
     pdf_text: str = Field(..., description="Raw text extracted from CAMS/KFintech PDF")
+    user_email: str | None = Field(None, description="Optional email to save the plan to the database")
 
 
 # ── Response ───────────────────────────────────────────────────────────────

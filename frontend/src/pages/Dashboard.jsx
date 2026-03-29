@@ -10,9 +10,10 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
+import { useAuth } from '../context/AuthContext'
 import {
     LayoutDashboard, Heart, Flame, FileText,
-    BarChart3, Users, ArrowLeft, Bell, ChevronRight,
+    BarChart3, Users, ArrowLeft, Bell, ChevronRight, User,
 } from 'lucide-react'
 
 // ─── ROUTE MAP ────────────────────────────────────────────────────────────────
@@ -23,6 +24,7 @@ const NAV = [
     { path: '/dashboard/tax', id: 'tax', label: 'Tax Wizard', icon: FileText, color: '#F59E0B' },
     { path: '/dashboard/portfolio', id: 'portfolio', label: 'Portfolio X-Ray', icon: BarChart3, color: '#EF4444' },
     { path: '/dashboard/couple', id: 'couple', label: "Couple's Planner", icon: Users, color: '#8B5CF6' },
+    { path: '/dashboard/profile', id: 'profile', label: 'Profile', icon: User, color: '#9A9AAD' },
 ]
 
 // Returns the current active nav item based on pathname
@@ -36,6 +38,9 @@ function useActiveNav() {
 function Sidebar() {
     const navigate = useNavigate()
     const activeItem = useActiveNav()
+    const { user } = useAuth()
+
+    const initials = user?.name?.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2) || '?'
 
     return (
         <aside style={{
@@ -134,22 +139,25 @@ function Sidebar() {
                     <ArrowLeft size={14} /> Back to Home
                 </motion.button>
 
-                <div style={{
+                <div
+                    onClick={() => navigate('/dashboard/profile')}
+                    style={{
                     margin: '10px 0 0',
                     display: 'flex', alignItems: 'center', gap: 10,
                     padding: '10px 12px',
                     background: 'rgba(255,255,255,0.04)',
                     borderRadius: 10, border: '1px solid rgba(255,255,255,0.06)',
+                    cursor: 'pointer', transition: 'background 0.2s',
                 }}>
                     <div style={{
                         width: 30, height: 30, borderRadius: 8, flexShrink: 0,
                         background: 'linear-gradient(135deg, #E8272A, #F59E0B)',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                         fontSize: 11, fontWeight: 700, color: '#fff',
-                    }}>A</div>
+                    }}>{initials}</div>
                     <div>
-                        <p style={{ fontSize: 12, fontWeight: 600, color: '#F0F0F5' }}>Arjun Mehta</p>
-                        <p style={{ fontSize: 10, color: '#9A9AAD' }}>Mumbai · 32 yrs</p>
+                        <p style={{ fontSize: 12, fontWeight: 600, color: '#F0F0F5' }}>{user?.name || 'User'}</p>
+                        <p style={{ fontSize: 10, color: '#9A9AAD' }}>{[user?.city, user?.age ? `${user.age} yrs` : ''].filter(Boolean).join(' · ') || 'Tap to edit profile'}</p>
                     </div>
                 </div>
             </div>
@@ -161,6 +169,7 @@ function Sidebar() {
 function Topbar() {
     const activeItem = useActiveNav()
     const Icon = activeItem.icon
+    const { user } = useAuth()
 
     return (
         <header style={{
@@ -174,7 +183,7 @@ function Topbar() {
                 <Icon size={15} color={activeItem.color} strokeWidth={2} />
                 <span style={{ fontSize: 14, fontWeight: 600, color: '#F0F0F5' }}>{activeItem.label}</span>
                 <ChevronRight size={13} color="#9A9AAD" />
-                <span style={{ fontSize: 12, color: '#9A9AAD' }}>Arjun Mehta</span>
+                <span style={{ fontSize: 12, color: '#9A9AAD' }}>{user?.name || 'User'}</span>
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>

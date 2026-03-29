@@ -4,8 +4,11 @@ Handles both manual input and Form 16 PDF upload flows.
 Wires together: tax_engine → et_feed → tax_prompt → groq_manager
 """
 import json
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
 from fastapi.responses import JSONResponse
+from sqlalchemy.orm import Session
+from database import get_db
+from models.db_models import User, TaxPlan
 
 from models.tax_models import (
     ManualTaxInput,
@@ -31,6 +34,7 @@ def _build_response(
     data: ManualTaxInput,
     input_source: str,
     et_context: str,
+    db: Session = None,
 ) -> TaxWizardResponse:
     """
     Shared logic for both manual and PDF flows.
@@ -39,22 +43,38 @@ def _build_response(
     # COMPUTE — run both regime calculations
     result = run_tax_calculation(data)
 
-    # ADVISE — build prompt with all computed data + ET context
-    prompt = build_tax_advice_prompt(
-        data               = data,
-        old_regime         = result["old_regime"],
-        new_regime         = result["new_regime"],
-        recommended_regime = result["recommended_regime"],
-        tax_saving         = result["tax_saving_with_recommendation"],
-        missed_deductions  = result["missed_deductions"],
-        et_context         = et_context,
-    )
+    # ADVISE
+    if data.skip_ai:
+        ai_advice = ""
+    else:
+        prompt = build_tax_advice_prompt(
+            data               = data,
+            old_regime         = result["old_regime"],
+            new_regime         = result["new_regime"],
+            recommended_regime = result["recommended_regime"],
+            tax_saving         = result["tax_saving_with_recommendation"],
+            missed_deductions  = result["missed_deductions"],
+            et_context         = et_context,
+        )
 
-    # Call Groq — LLaMA 3.3 70B for advice
-    ai_advice = groq_manager.chat(
-        prompt     = prompt,
-        max_tokens = 1024,
-    )
+        # Call Groq — LLaMA 3.3 70B for advice
+        ai_advice = groq_manager.chat(
+            prompt     = prompt,
+            max_tokens = 1024,
+        )
+
+    # SAVE TO DB (Optional)
+    if db and data.user_email:
+        user = db.query(User).filter(User.email == data.user_email).first()
+        if user:
+            db_result = TaxPlan(
+                user_id=user.id,
+                old_tax=result["old_regime"].total_tax,
+                new_tax=result["new_regime"].total_tax,
+                tax_saved=result["tax_saving_with_recommendation"]
+            )
+            db.add(db_result)
+            db.commit()
 
     return TaxWizardResponse(
         old_regime                     = result["old_regime"],
@@ -71,7 +91,7 @@ def _build_response(
 # ─── ROUTE 1 — MANUAL INPUT ───────────────────────────────────────────────────
 
 @router.post("/tax-wizard/manual", response_model=TaxWizardResponse)
-async def tax_wizard_manual(data: ManualTaxInput):
+async def tax_wizard_manual(data: ManualTaxInput, db: Session = Depends(get_db)):
     """
     Tax Wizard — Manual salary input flow.
 
@@ -99,6 +119,7 @@ async def tax_wizard_manual(data: ManualTaxInput):
             data         = data,
             input_source = "manual",
             et_context   = et_context,
+            db           = db,
         )
 
     except HTTPException:
@@ -114,7 +135,7 @@ async def tax_wizard_manual(data: ManualTaxInput):
 # ─── ROUTE 2 — PDF UPLOAD ─────────────────────────────────────────────────────
 
 @router.post("/tax-wizard/pdf", response_model=TaxWizardResponse)
-async def tax_wizard_pdf(file: UploadFile = File(...)):
+async def tax_wizard_pdf(file: UploadFile = File(...), user_email: str | None = None, db: Session = Depends(get_db)):
     """
     Tax Wizard — Form 16 PDF upload flow.
 
@@ -168,6 +189,7 @@ async def tax_wizard_pdf(file: UploadFile = File(...)):
             section_80ccd_1b    = extracted.section_80ccd_1b or 0,
             home_loan_interest  = extracted.home_loan_interest or 0,
             age                 = extracted.age or 30,
+            user_email          = user_email,
         )
 
         # Validate that we got at least annual CTC from the PDF
@@ -185,6 +207,7 @@ async def tax_wizard_pdf(file: UploadFile = File(...)):
             data         = tax_input,
             input_source = "pdf",
             et_context   = et_context,
+            db           = db,
         )
 
     except HTTPException:

@@ -3,7 +3,10 @@ FIRE Path Planner route — Feature 02
 Accepts user profile and goals, runs full FIRE calculation,
 injects ET RSS context, calls Groq for personalized roadmap.
 """
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
+from sqlalchemy.orm import Session
+from database import get_db
+from models.db_models import User, FirePlan
 
 from models.fire_models import FireInput, FireResponse
 from calculators.fire_math import run_fire_calculation
@@ -18,7 +21,7 @@ router = APIRouter()
 # ─── ROUTE ────────────────────────────────────────────────────────────────────
 
 @router.post("/fire-planner", response_model=FireResponse)
-async def fire_planner(data: FireInput):
+async def fire_planner(data: FireInput, db: Session = Depends(get_db)):
     """
     FIRE Path Planner — Full financial roadmap generation.
 
@@ -93,6 +96,18 @@ async def fire_planner(data: FireInput):
             prompt     = prompt,
             max_tokens = 1500,   # FIRE advice is longer than tax advice
         )
+
+        # SAVE TO DB (Optional)
+        if data.user_email:
+            user = db.query(User).filter(User.email == data.user_email).first()
+            if user:
+                db_result = FirePlan(
+                    user_id=user.id,
+                    target_age=data.retirement_age,
+                    monthly_sip_needed=result["total_monthly_sip_required"]
+                )
+                db.add(db_result)
+                db.commit()
 
         return FireResponse(
             goal_plans                  = result["goal_plans"],

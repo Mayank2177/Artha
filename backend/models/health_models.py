@@ -26,6 +26,8 @@ class QuizInput(BaseModel):
     """Complete quiz submission with 12 answers"""
     answers: List[QuizAnswer] = Field(..., min_length=12, max_length=12)
     user_name: str | None = Field(None, max_length=50, description="Optional name for personalized response")
+    user_email: str | None = Field(None, description="Optional email to save the score to the database")
+    skip_ai: bool = Field(False, description="If true, compute and save score but skip expensive Groq AI call")
 
     @field_validator('answers')
     @classmethod

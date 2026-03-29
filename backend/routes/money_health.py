@@ -3,8 +3,11 @@ Money Health Score route — Feature 01
 Wires together: health_score → health_prompt → groq_manager
 """
 import json
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import JSONResponse
+from sqlalchemy.orm import Session
+from database import get_db
+from models.db_models import User, MoneyHealthResult
 
 from models.health_models import (
     QuizInput,
@@ -22,7 +25,7 @@ router = APIRouter()
 # ─── ROUTE — MONEY HEALTH SCORE ──────────────────────────────────────────────
 
 @router.post("/money-health", response_model=HealthScoreResponse)
-async def money_health_score(data: QuizInput):
+async def money_health_score(data: QuizInput, db: Session = Depends(get_db)):
     """
     Money Health Score — 12-question financial health quiz.
 
@@ -49,37 +52,41 @@ async def money_health_score(data: QuizInput):
         overall_grade    = result["overall_grade"]
         weakest_3        = result["weakest_3"]
 
-        # STEP 2 — ADVISE: Build prompt for Groq AI
-        prompt = build_health_advice_prompt(
-            dimension_scores = dimension_scores,
-            overall_score    = overall_score,
-            overall_grade    = overall_grade,
-            weakest_3        = weakest_3,
-            user_name        = data.user_name,
-        )
+        # STEP 2 — ADVISE
+        if data.skip_ai:
+            ai_data = {}
+            ai_assessment = ""
+            top_3_areas = weakest_3[:3]
+            action_plan_raw = []
+        else:
+            prompt = build_health_advice_prompt(
+                dimension_scores = dimension_scores,
+                overall_score    = overall_score,
+                overall_grade    = overall_grade,
+                weakest_3        = weakest_3,
+                user_name        = data.user_name,
+            )
 
-        # STEP 3 — Call Groq — LLaMA 3.3 70B for personalized advice
-        ai_response = groq_manager.chat(
-            prompt     = prompt,
-            max_tokens = 1024,
-        )
+            # STEP 3 — Call Groq — LLaMA 3.3 70B for personalized advice
+            ai_response = groq_manager.chat(
+                prompt     = prompt,
+                max_tokens = 1024,
+            )
 
-        # STEP 4 — Parse AI response (expecting JSON)
-        try:
-            ai_data = json.loads(ai_response)
-        except json.JSONDecodeError:
-            # Try to clean common LLM JSON formatting issues
-            cleaned = ai_response.strip()
-            if cleaned.startswith("```"):
-                cleaned = cleaned.split("```")[1]
-                if cleaned.startswith("json"):
-                    cleaned = cleaned[4:]
-            ai_data = json.loads(cleaned)
+            # STEP 4 — Parse AI response (expecting JSON)
+            try:
+                ai_data = json.loads(ai_response)
+            except json.JSONDecodeError:
+                cleaned = ai_response.strip()
+                if cleaned.startswith("```"):
+                    cleaned = cleaned.split("```")[1]
+                    if cleaned.startswith("json"):
+                        cleaned = cleaned[4:]
+                ai_data = json.loads(cleaned)
 
-        # STEP 5 — Validate and extract AI-generated fields
-        ai_assessment = ai_data.get("ai_assessment", "")
-        top_3_areas   = ai_data.get("top_3_areas_to_fix", weakest_3)[:3]
-        action_plan_raw = ai_data.get("action_plan", [])
+            ai_assessment = ai_data.get("ai_assessment", "")
+            top_3_areas   = ai_data.get("top_3_areas_to_fix", weakest_3)[:3]
+            action_plan_raw = ai_data.get("action_plan", [])
 
         # Parse action items
         action_plan = [
@@ -101,7 +108,15 @@ async def money_health_score(data: QuizInput):
                 )
             )
 
-        # STEP 6 — Build final response
+        # STEP 6 — Save to DB (Optional)
+        if data.user_email:
+            user = db.query(User).filter(User.email == data.user_email).first()
+            if user:
+                db_result = MoneyHealthResult(user_id=user.id, score=overall_score)
+                db.add(db_result)
+                db.commit()
+
+        # STEP 7 — Build final response
         return HealthScoreResponse(
             overall_score      = overall_score,
             overall_grade      = overall_grade,

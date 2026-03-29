@@ -36,6 +36,8 @@ class ManualTaxInput(BaseModel):
     # Additional info
     age: int = Field(default=30, ge=18, le=100, description="Age of taxpayer")
     financial_year: str = Field(default="2024-25", description="Financial year")
+    user_email: str | None = Field(None, description="Optional email to save the plan to the database")
+    skip_ai: bool = Field(False, description="If true, compute and save score but skip expensive Groq AI call")
 
 
 class TaxBreakdown(BaseModel):

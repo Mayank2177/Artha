@@ -4,6 +4,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
 import {
   motion, useAnimation, useInView, AnimatePresence,
 } from 'framer-motion'
@@ -77,6 +78,8 @@ function CursorGlow() {
 // ─── NAVBAR ──────────────────────────────────────────────────────────────────
 function Navbar() {
   const navigate = useNavigate()
+  const { user } = useAuth()
+  const dest = user ? '/dashboard' : '/auth'
   const [scrolled, setScrolled] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
   useEffect(() => {
@@ -126,7 +129,7 @@ function Navbar() {
 
         <motion.button
           whileHover={{ scale: 1.04, boxShadow: '0 0 32px rgba(232,39,42,0.45)' }}
-          whileTap={{ scale: 0.97 }} onClick={() => navigate('/dashboard')}
+          whileTap={{ scale: 0.97 }} onClick={() => navigate(dest)}
           style={{
             background: '#E8272A', color: '#fff', borderRadius: 9, padding: '10px 22px',
             fontSize: 14, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6,
@@ -219,6 +222,8 @@ const radarData = [
 // ─── HERO SECTION ─────────────────────────────────────────────────────────────
 function HeroSection() {
   const navigate = useNavigate()
+  const { user } = useAuth()
+  const dest = user ? '/dashboard' : '/auth'
 
   // The words we want to stagger animate
   const swipeWords = ["as", "easy", "as", "a", "swipe."]
@@ -439,7 +444,7 @@ function HeroSection() {
             whileHover={{ scale: 1.04, y: -3, boxShadow: '0 16px 52px rgba(232,39,42,0.48)' }}
             whileTap={{ scale: 0.97 }}
             transition={{ type: 'spring', stiffness: 300, damping: 20 }}
-            onClick={() => navigate('/dashboard')}
+            onClick={() => navigate(dest)}
             style={{
               background: '#E8272A', color: '#fff', borderRadius: 11, padding: '16px 40px',
               fontSize: 16, fontWeight: 700,
@@ -740,14 +745,8 @@ function ProblemSection() {
 // ─── CTA SECTION ─────────────────────────────────────────────────────────────
 function CTASection() {
   const navigate = useNavigate()
-  const { ref, inView } = useIOView({ triggerOnce: true, threshold: 0.4 })
-
-  const stats = [
-    { end: 95, suffix: '%', prefix: '', label: 'Indians have no financial plan', color: '#E8272A' },
-    { end: 25, suffix: 'K+', prefix: '₹', label: 'per year charged by advisors', color: '#F0F0F5' },
-    { end: 5, suffix: '', prefix: '', label: 'minutes to your full plan', color: '#F0F0F5' },
-    { end: 100, suffix: '%', prefix: '', label: 'free for every Indian', color: '#10B981' },
-  ]
+  const { user } = useAuth()
+  const dest = user ? '/dashboard' : '/auth'
 
   return (
     <section id="cta" style={{
@@ -764,26 +763,6 @@ function CTASection() {
       }} />
 
       <div style={{ maxWidth: 1100, margin: '0 auto', position: 'relative', zIndex: 2 }}>
-        <div ref={ref} style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 0, marginBottom: 80 }}>
-          {stats.map((s, i) => (
-            <div key={i} style={{
-              textAlign: 'center', padding: '0 24px',
-              borderRight: i < 3 ? '1px solid rgba(255,255,255,0.07)' : 'none',
-            }}>
-              <p style={{
-                fontFamily: "'Playfair Display', serif",
-                fontSize: 'clamp(36px, 4vw, 54px)', fontWeight: 800,
-                lineHeight: 1, marginBottom: 10, color: s.color, fontVariantNumeric: 'tabular-nums',
-              }}>
-                {inView ? (
-                  <CountUp start={0} end={s.end} duration={1.8} prefix={s.prefix} suffix={s.suffix} />
-                ) : `${s.prefix}0${s.suffix}`}
-              </p>
-              <p style={{ fontSize: 13, color: '#9A9AAD', lineHeight: 1.5, fontWeight: 500 }}>{s.label}</p>
-            </div>
-          ))}
-        </div>
-
         <div style={{ textAlign: 'center' }}>
           <Reveal>
             <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '2.5px', textTransform: 'uppercase', color: '#E8272A', marginBottom: 18 }}>
@@ -809,7 +788,7 @@ function CTASection() {
               whileHover={{ scale: 1.05, y: -4, boxShadow: '0 24px 64px rgba(232,39,42,0.5)' }}
               whileTap={{ scale: 0.97 }}
               transition={{ type: 'spring', stiffness: 280, damping: 18 }}
-              onClick={() => navigate('/dashboard')}
+              onClick={() => navigate(dest)}
               style={{
                 background: '#E8272A', color: '#fff', borderRadius: 13, padding: '18px 56px',
                 fontSize: 18, fontWeight: 700,
@@ -820,7 +799,7 @@ function CTASection() {
               Open Dashboard <ArrowRight size={20} />
             </motion.button>
             <p style={{ fontSize: 13, color: '#9A9AAD', marginTop: 16 }}>
-              Takes 5 minutes · Completely free · No signup required
+              Takes 5 minutes · Completely free
             </p>
           </Reveal>
         </div>
@@ -832,6 +811,7 @@ function CTASection() {
 // ─── FOOTER — rich contact footer ─────────────────────────────────────────────
 function Footer() {
   const navigate = useNavigate()
+  const { user } = useAuth()
 
   const socials = [
     {
@@ -875,7 +855,7 @@ function Footer() {
   const links = [
     { label: 'Features', href: '#features' },
     { label: 'The Problem', href: '#problem' },
-    { label: 'Dashboard', action: () => navigate('/dashboard') },
+    { label: 'Dashboard', action: () => navigate(user ? '/dashboard' : '/auth') },
   ]
 
   return (
