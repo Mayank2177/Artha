@@ -1,10 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-//  ARTHA — Landing Page (Upgraded v3)
-//  Changes vs v2:
-//  1. Hero: "as easy as checking WhatsApp." — smaller, lighter italic weight, different feel
-//  2. Mid section (between Features & CTA): replaced with "The Problem" editorial strip
-//  3. CTA section: kept stats + CTA copy, but gap filled with manifesto callouts
-//  4. Footer: full contact footer — LinkedIn, WhatsApp, Instagram, email, tagline
+//  ARTHA — Landing Page (Upgraded v6: Elegant Staggered Subheadline)
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useEffect, useRef, useState } from 'react'
@@ -21,15 +16,24 @@ import {
   ChevronDown, X,
 } from 'lucide-react'
 
-// ─── VARIANTS ────────────────────────────────────────────────────────────────
+// ─── 3D IMPORTS ──────────────────────────────────────────────────────────────
+import { Canvas, useFrame } from '@react-three/fiber'
+import { Float, Environment } from '@react-three/drei'
+
+// ─── VARIANTS ───────────────────────────────
 const V = {
   fadeUp: {
-    hidden: { opacity: 0, y: 40 },
-    visible: { opacity: 1, y: 0, transition: { duration: 0.72, ease: [0.22, 1, 0.36, 1] } },
+    hidden: { opacity: 0, y: 50, scale: 0.95 },
+    visible: {
+      opacity: 1,
+      y: 0,
+      scale: 1,
+      transition: { type: 'spring', damping: 22, stiffness: 120 }
+    },
   },
-  stagger: (d = 0.12) => ({
+  stagger: (d = 0.15) => ({
     hidden: {},
-    visible: { transition: { staggerChildren: d } },
+    visible: { transition: { staggerChildren: d, delayChildren: 0.2 } },
   }),
 }
 
@@ -158,6 +162,31 @@ function Navbar() {
   )
 }
 
+// ─── 3D BACKGROUND COMPONENTS ────────────────────────────────────────────────
+function RotatingShape() {
+  const meshRef = useRef()
+  useFrame((state, delta) => {
+    meshRef.current.rotation.x += delta * 0.1
+    meshRef.current.rotation.y += delta * 0.15
+  })
+
+  return (
+    <Float speed={2} rotationIntensity={0.5} floatIntensity={1.5}>
+      <mesh ref={meshRef} position={[2, 0, -2]} scale={1.8}>
+        <icosahedronGeometry args={[1, 1]} />
+        <meshStandardMaterial
+          color="#0A0A0F"
+          emissive="#E8272A"
+          emissiveIntensity={0.4}
+          wireframe={true}
+          transparent={true}
+          opacity={0.3}
+        />
+      </mesh>
+    </Float>
+  )
+}
+
 // ─── FLOATING HERO CARD ───────────────────────────────────────────────────────
 function FloatingCard({ children, delay = 0, style = {} }) {
   return (
@@ -172,6 +201,7 @@ function FloatingCard({ children, delay = 0, style = {} }) {
         backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)',
         display: 'flex', alignItems: 'center', gap: 12,
         boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
+        maxWidth: 260,
         ...style,
       }}
     >
@@ -189,6 +219,10 @@ const radarData = [
 // ─── HERO SECTION ─────────────────────────────────────────────────────────────
 function HeroSection() {
   const navigate = useNavigate()
+
+  // The words we want to stagger animate
+  const swipeWords = ["as", "easy", "as", "a", "swipe."]
+
   return (
     <section style={{
       minHeight: '100vh', display: 'flex', flexDirection: 'column',
@@ -196,6 +230,17 @@ function HeroSection() {
       textAlign: 'center', padding: '120px 24px 80px',
       position: 'relative', overflow: 'hidden',
     }}>
+
+      {/* ─── 3D CANVAS INJECTION ─── */}
+      <div style={{ position: 'absolute', inset: 0, zIndex: 0, pointerEvents: 'none' }}>
+        <Canvas camera={{ position: [0, 0, 5], fov: 45 }}>
+          <ambientLight intensity={0.5} />
+          <directionalLight position={[10, 10, 5]} intensity={1} color="#E8272A" />
+          <RotatingShape />
+          <Environment preset="city" />
+        </Canvas>
+      </div>
+
       {/* Background glows */}
       <motion.div
         animate={{ scale: [1, 1.18, 1], opacity: [0.55, 1, 0.55] }}
@@ -204,27 +249,29 @@ function HeroSection() {
           position: 'absolute', top: '14%', left: '50%', transform: 'translateX(-50%)',
           width: 800, height: 460, borderRadius: '50%',
           background: 'radial-gradient(ellipse, rgba(232,39,42,0.14) 0%, transparent 68%)',
-          pointerEvents: 'none',
+          pointerEvents: 'none', zIndex: 1
         }}
       />
       <div style={{
         position: 'absolute', top: '45%', right: '-8%', width: 350, height: 350,
         background: 'radial-gradient(circle, rgba(16,185,129,0.05) 0%, transparent 70%)',
-        pointerEvents: 'none', borderRadius: '50%',
+        pointerEvents: 'none', borderRadius: '50%', zIndex: 1
       }} />
+
       {/* Grid */}
       <div style={{
-        position: 'absolute', inset: 0, pointerEvents: 'none',
+        position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 1,
         backgroundImage: `linear-gradient(rgba(255,255,255,0.022) 1px, transparent 1px),linear-gradient(90deg, rgba(255,255,255,0.022) 1px, transparent 1px)`,
         backgroundSize: '60px 60px',
         maskImage: 'radial-gradient(ellipse 80% 55% at 50% 0%, black 0%, transparent 100%)',
         WebkitMaskImage: 'radial-gradient(ellipse 80% 55% at 50% 0%, black 0%, transparent 100%)',
       }} />
 
-      {/* Floating cards */}
+      {/* Floating cards — FIXED POSITIONS */}
       <motion.div initial={{ opacity: 0, x: -60 }} animate={{ opacity: 1, x: 0 }}
         transition={{ delay: 1.1, duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
-        className="hero-float-left" style={{ position: 'absolute', top: '28%', left: '5%', display: 'none' }}>
+        className="hero-float-left"
+        style={{ position: 'absolute', top: '25%', left: '8%', display: 'none', zIndex: 3 }}>
         <FloatingCard delay={0}>
           <div style={{ width: 72, height: 72 }}>
             <ResponsiveContainer width="100%" height="100%">
@@ -234,7 +281,7 @@ function HeroSection() {
               </RadarChart>
             </ResponsiveContainer>
           </div>
-          <div>
+          <div style={{ textAlign: 'left' }}>
             <p style={{ fontSize: 11, color: '#9A9AAD', marginBottom: 3 }}>Money Health</p>
             <p style={{ fontSize: 22, fontWeight: 700, color: '#10B981', fontVariantNumeric: 'tabular-nums' }}>
               72<span style={{ fontSize: 13, color: '#9A9AAD' }}>/100</span>
@@ -246,12 +293,13 @@ function HeroSection() {
 
       <motion.div initial={{ opacity: 0, x: 60 }} animate={{ opacity: 1, x: 0 }}
         transition={{ delay: 1.3, duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
-        className="hero-float-right" style={{ position: 'absolute', top: '30%', right: '5%', display: 'none' }}>
+        className="hero-float-right"
+        style={{ position: 'absolute', top: '22%', right: '15%', display: 'none', zIndex: 3 }}>
         <FloatingCard delay={1.5}>
-          <div style={{ width: 38, height: 38, borderRadius: 10, background: 'rgba(232,39,42,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ width: 38, height: 38, borderRadius: 10, background: 'rgba(232,39,42,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
             <TrendingUp size={17} color="#E8272A" />
           </div>
-          <div>
+          <div style={{ textAlign: 'left' }}>
             <p style={{ fontSize: 11, color: '#9A9AAD', marginBottom: 3 }}>FIRE SIP Needed</p>
             <p style={{ fontSize: 20, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
               ₹18,400<span style={{ fontSize: 12, color: '#9A9AAD' }}>/mo</span>
@@ -263,12 +311,13 @@ function HeroSection() {
 
       <motion.div initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 1.5, duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
-        className="hero-float-bottom" style={{ position: 'absolute', bottom: '20%', right: '7%', display: 'none' }}>
+        className="hero-float-bottom"
+        style={{ position: 'absolute', bottom: '15%', right: '12%', display: 'none', zIndex: 3 }}>
         <FloatingCard delay={0.8}>
-          <div style={{ width: 34, height: 34, borderRadius: 9, background: 'rgba(16,185,129,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ width: 34, height: 34, borderRadius: 9, background: 'rgba(16,185,129,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
             <IndianRupee size={15} color="#10B981" />
           </div>
-          <div>
+          <div style={{ textAlign: 'left' }}>
             <p style={{ fontSize: 11, color: '#9A9AAD' }}>Tax saved this FY</p>
             <p style={{ fontSize: 18, fontWeight: 700, color: '#10B981', fontVariantNumeric: 'tabular-nums' }}>₹47,250</p>
           </div>
@@ -278,8 +327,8 @@ function HeroSection() {
       {/* Hero copy */}
       <motion.div
         initial="hidden" animate="visible"
-        variants={V.stagger(0.13)}
-        style={{ position: 'relative', zIndex: 2, maxWidth: 860 }}
+        variants={V.stagger(0.15)}
+        style={{ position: 'relative', zIndex: 3, maxWidth: 800 }}
       >
         {/* Badge */}
         <motion.div variants={V.fadeUp} style={{ display: 'flex', justifyContent: 'center', marginBottom: 28 }}>
@@ -300,7 +349,7 @@ function HeroSection() {
           </motion.span>
         </motion.div>
 
-        {/* ── HEADLINE — upgraded ── */}
+        {/* ── HEADLINE ── */}
         <motion.h1 variants={V.fadeUp} style={{
           fontFamily: "'Playfair Display', serif",
           fontSize: 'clamp(48px, 8vw, 96px)',
@@ -320,24 +369,59 @@ function HeroSection() {
               }}
             />
           </motion.em>
-          <br />
-          as easy as
         </motion.h1>
 
-        {/* ── "checking WhatsApp." — lighter, smaller, italic feel ── */}
-        <motion.p variants={V.fadeUp} style={{
-          fontFamily: "'Playfair Display', serif",
-          fontStyle: 'italic',
-          fontSize: 'clamp(22px, 3.5vw, 42px)',
-          fontWeight: 400,
-          color: '#9A9AAD',
-          letterSpacing: '-0.5px',
-          lineHeight: 1.2,
-          marginBottom: 32,
-          marginTop: 4,
-        }}>
-          checking WhatsApp.
-        </motion.p>
+        {/* ── Subheadline "Swipe" Text (Staggered Animation) ── */}
+        <motion.div
+          variants={{
+            hidden: { opacity: 0 },
+            visible: {
+              opacity: 1,
+              transition: {
+                staggerChildren: 0.25, // Delay between each word
+                delayChildren: 0.6,    // Starts right after the main headline
+              }
+            }
+          }}
+          style={{
+            display: 'flex',
+            justifyContent: 'center',
+            flexWrap: 'wrap',
+            gap: '8px',
+            marginBottom: 32,
+            marginTop: 8,
+          }}
+        >
+          {swipeWords.map((word, i) => (
+            <motion.span
+              key={i}
+              variants={{
+                hidden: { opacity: 0, y: 15, filter: 'blur(5px)' },
+                visible: {
+                  opacity: 1,
+                  y: 0,
+                  filter: 'blur(0px)',
+                  transition: { duration: 0.8, ease: [0.22, 1, 0.36, 1] }
+                }
+              }}
+              style={{
+                fontFamily: "'Playfair Display', serif",
+                fontStyle: 'italic',
+                fontSize: 'clamp(22px, 3.5vw, 42px)', // Much more elegant and refined size
+                fontWeight: 400, // Lighter, unique feel
+                color: '#C8C8D0', // Soft grey to let the main headline shine
+                letterSpacing: '-0.5px',
+                lineHeight: 1.2,
+              }}
+            >
+              {word === "swipe." ? (
+                <span style={{ color: '#F0F0F5', fontWeight: 500 }}>{word}</span>
+              ) : (
+                word
+              )}
+            </motion.span>
+          ))}
+        </motion.div>
 
         {/* Subtitle */}
         <motion.p variants={V.fadeUp} style={{
@@ -398,7 +482,7 @@ function HeroSection() {
 
       {/* Scroll cue */}
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 2.4 }}
-        style={{ position: 'absolute', bottom: 32, left: '50%', transform: 'translateX(-50%)' }}>
+        style={{ position: 'absolute', bottom: 32, left: '50%', transform: 'translateX(-50%)', zIndex: 3 }}>
         <motion.div animate={{ y: [0, 8, 0] }} transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut' }}>
           <ChevronDown size={22} color="#9A9AAD" />
         </motion.div>
@@ -563,8 +647,7 @@ function FeaturesSection() {
   )
 }
 
-// ─── THE PROBLEM SECTION (replaces old How It Works / Stats strip) ──────────
-// Editorial, raw, honest — not AI-generated feeling
+// ─── THE PROBLEM SECTION ────────────────────────────────────────────────────
 function ProblemSection() {
   const lines = [
     { num: '95%', unit: '', text: 'of Indians have no financial plan.', color: '#E8272A' },
@@ -581,21 +664,18 @@ function ProblemSection() {
       padding: '96px 48px',
       position: 'relative', overflow: 'hidden',
     }}>
-      {/* Subtle left-side red line */}
       <div style={{
         position: 'absolute', left: 0, top: 0, bottom: 0, width: 3,
         background: 'linear-gradient(180deg, transparent, #E8272A 30%, #E8272A 70%, transparent)',
       }} />
 
       <div style={{ maxWidth: 1100, margin: '0 auto' }}>
-        {/* Label */}
         <Reveal>
           <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '3px', textTransform: 'uppercase', color: '#E8272A', marginBottom: 48 }}>
             The Problem
           </p>
         </Reveal>
 
-        {/* Stat lines — editorial style, not boxes */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
           {lines.map((l, i) => (
             <Reveal key={i} delay={i * 0.1}>
@@ -609,7 +689,6 @@ function ProblemSection() {
                   transition: 'padding-left 0.3s ease',
                 }}
               >
-                {/* Big stat number */}
                 <span style={{
                   fontFamily: "'Playfair Display', serif",
                   fontSize: 'clamp(36px, 4.5vw, 60px)', fontWeight: 800,
@@ -619,11 +698,7 @@ function ProblemSection() {
                 }}>
                   {l.num}<span style={{ fontSize: '0.5em', fontWeight: 600 }}>{l.unit}</span>
                 </span>
-
-                {/* Dividing line */}
                 <span style={{ width: 32, height: 1, background: 'rgba(255,255,255,0.15)', flexShrink: 0, marginBottom: 8 }} />
-
-                {/* Text */}
                 <p style={{
                   fontSize: 'clamp(15px, 1.8vw, 20px)',
                   color: '#C8C8D0', fontWeight: 400, lineHeight: 1.4,
@@ -631,8 +706,6 @@ function ProblemSection() {
                 }}>
                   {l.text}
                 </p>
-
-                {/* Line number */}
                 <span style={{
                   marginLeft: 'auto', fontSize: 11, color: 'rgba(255,255,255,0.12)',
                   fontFamily: 'monospace', flexShrink: 0,
@@ -644,7 +717,6 @@ function ProblemSection() {
           ))}
         </div>
 
-        {/* Closing thought */}
         <Reveal delay={0.5}>
           <div style={{ marginTop: 56, display: 'flex', alignItems: 'flex-start', gap: 20 }}>
             <div style={{ width: 3, background: '#E8272A', borderRadius: 2, alignSelf: 'stretch', flexShrink: 0, minHeight: 60 }} />
@@ -684,7 +756,6 @@ function CTASection() {
       background: '#111118',
       borderTop: '1px solid rgba(255,255,255,0.07)',
     }}>
-      {/* Glow */}
       <div style={{
         position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
         width: 700, height: 400, borderRadius: '50%',
@@ -693,7 +764,6 @@ function CTASection() {
       }} />
 
       <div style={{ maxWidth: 1100, margin: '0 auto', position: 'relative', zIndex: 2 }}>
-        {/* Stats strip */}
         <div ref={ref} style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 0, marginBottom: 80 }}>
           {stats.map((s, i) => (
             <div key={i} style={{
@@ -714,7 +784,6 @@ function CTASection() {
           ))}
         </div>
 
-        {/* CTA copy */}
         <div style={{ textAlign: 'center' }}>
           <Reveal>
             <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '2.5px', textTransform: 'uppercase', color: '#E8272A', marginBottom: 18 }}>
@@ -788,7 +857,7 @@ function Footer() {
       href: 'https://wa.me/919876543210',
       icon: (
         <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
+          <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51a9.87 9.87 0 00-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
         </svg>
       ),
     },
@@ -814,14 +883,12 @@ function Footer() {
       background: '#0A0A0F',
       borderTop: '1px solid rgba(255,255,255,0.07)',
     }}>
-      {/* Main footer body */}
       <div style={{
         maxWidth: 1180, margin: '0 auto',
         padding: '64px 48px 48px',
         display: 'grid', gridTemplateColumns: '2fr 1fr 1fr',
         gap: 48,
       }}>
-        {/* Brand column */}
         <div>
           <div style={{
             fontFamily: "'Playfair Display', serif",
@@ -848,7 +915,6 @@ function Footer() {
           </div>
         </div>
 
-        {/* Navigation */}
         <div>
           <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: '#9A9AAD', marginBottom: 20 }}>
             Navigate
@@ -871,13 +937,10 @@ function Footer() {
           </div>
         </div>
 
-        {/* Contact */}
         <div>
           <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: '#9A9AAD', marginBottom: 20 }}>
             Connect
           </p>
-
-          {/* Email */}
           <a href="mailto:hello@artha.money"
             style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, color: '#9A9AAD', fontSize: 14, transition: 'color 0.2s' }}
             onMouseEnter={e => e.currentTarget.style.color = '#F0F0F5'}
@@ -887,8 +950,6 @@ function Footer() {
             </svg>
             hello@artha.money
           </a>
-
-          {/* Phone / WhatsApp */}
           <a href="https://wa.me/919876543210"
             style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20, color: '#9A9AAD', fontSize: 14, transition: 'color 0.2s' }}
             onMouseEnter={e => e.currentTarget.style.color = '#F0F0F5'}
@@ -898,8 +959,6 @@ function Footer() {
             </svg>
             <span style={{ color: '#9A9AAD' }}>+91 98765 43210</span>
           </a>
-
-          {/* Social icons */}
           <div style={{ display: 'flex', gap: 10 }}>
             {socials.map((s) => (
               <motion.a
@@ -922,7 +981,6 @@ function Footer() {
         </div>
       </div>
 
-      {/* Bottom bar */}
       <div style={{
         borderTop: '1px solid rgba(255,255,255,0.05)',
         padding: '20px 48px',
