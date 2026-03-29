@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+pydantic
+groq
+pdfplumber
+pyxirr
+feedparser
+python-multipart
+python-dotenv
