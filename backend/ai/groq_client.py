@@ -20,7 +20,7 @@ class GroqClientManager:
             raise ValueError("No Groq API keys found. Check your .env file.")
 
         self._cycle = itertools.cycle(self.keys)
-        print(f"✓ GroqClientManager initialized with {len(self.keys)} key(s)")
+        print(f"[OK] GroqClientManager initialized with {len(self.keys)} key(s)")
 
     def get_client(self) -> Groq:
         """Returns a Groq client initialized with the next key in rotation"""
@@ -81,3 +81,14 @@ class GroqClientManager:
 
 # Singleton — import this everywhere, don't instantiate again
 groq_manager = GroqClientManager()
+
+
+def get_groq_client() -> Groq:
+    """
+    Utility function to get a Groq client.
+    Uses the groq_manager singleton for API key rotation.
+
+    Returns:
+        Groq client initialized with next key in rotation
+    """
+    return groq_manager.get_client()

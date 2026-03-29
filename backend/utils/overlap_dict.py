@@ -87,6 +87,37 @@ FUND_HOLDINGS: dict[str, list[str]] = {
 }
 
 
+# Expense Ratios (in percentage, e.g., 0.75 = 0.75%)
+FUND_EXPENSE_RATIOS: dict[str, float] = {
+    # Large Cap Funds
+    "Mirae Asset Large Cap Fund": 0.65,
+    "HDFC Top 100 Fund": 0.75,
+    "ICICI Prudential Bluechip Fund": 0.70,
+
+    # Flexi Cap Funds
+    "Parag Parikh Flexi Cap Fund": 0.85,
+    "HDFC Flexi Cap Fund": 0.80,
+
+    # Mid Cap Funds
+    "Nippon India Growth Fund": 1.00,
+    "HDFC Mid-Cap Opportunities Fund": 1.05,
+
+    # ELSS Funds
+    "Mirae Asset Tax Saver Fund": 0.95,
+    "Quant Tax Plan": 0.80,
+
+    # Index Funds
+    "UTI Nifty 50 Index Fund": 0.15,
+    "HDFC Nifty 50 Index Fund": 0.20,
+}
+
+# Default expense ratio for unknown funds (0.90% per annum)
+DEFAULT_EXPENSE_RATIO = 0.90
+
+# Expense ratio for index funds (0.10% per annum)
+INDEX_EXPENSE_RATIO = 0.10
+
+
 def get_overlapping_stocks(fund_a: str, fund_b: str) -> list[str]:
     """
     Returns list of stocks common between two funds.

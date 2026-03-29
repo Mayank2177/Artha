@@ -92,8 +92,8 @@ def validate_config() -> bool:
             "Please set at least one of: GROQ_API_KEY_1, GROQ_API_KEY_2, GROQ_API_KEY_3"
         )
 
-    print(f"✓ Configuration loaded successfully")
-    print(f"✓ Found {len(groq_keys)} Groq API key(s)")
-    print(f"✓ Using models: {config.GROQ_MODEL_LARGE} (large), {config.GROQ_MODEL_SMALL} (small)")
+    print(f"[OK] Configuration loaded successfully")
+    print(f"[OK] Found {len(groq_keys)} Groq API key(s)")
+    print(f"[OK] Using models: {config.GROQ_MODEL_LARGE} (large), {config.GROQ_MODEL_SMALL} (small)")
 
     return True
