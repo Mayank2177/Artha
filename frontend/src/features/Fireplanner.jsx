@@ -6,6 +6,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { useState, useMemo, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { useAuth } from '../context/AuthContext'
 import {
     LineChart, Line, XAxis, YAxis, CartesianGrid,
     Tooltip, ResponsiveContainer, PieChart, Pie, Cell,
@@ -32,6 +33,8 @@ const T = {
     text: '#F0F0F5',
     muted: '#9A9AAD',
 }
+
+const API_BASE = 'http://localhost:8000/api'
 
 const GOAL_TYPES = ['Home Purchase', 'Child Education', 'Retirement', 'Wedding', 'Vehicle', 'Travel', 'Business', 'Other']
 const GOAL_COLORS = ['#E8272A', '#F59E0B', '#10B981', '#3B82F6', '#8B5CF6', '#EC4899', '#14B8A6', '#F97316']
@@ -381,6 +384,7 @@ function PhaseCard({ iconColor, iconBg, emoji, title, children }) {
 
 // ─── MAIN COMPONENT ───────────────────────────────────────────────────────────
 export default function FirePlanner() {
+    const { user } = useAuth()
     const [form, setForm] = useState({
         age: '30', retireAge: '50',
         income: '120000', expenses: '65000',
@@ -391,6 +395,7 @@ export default function FirePlanner() {
     const [market, setMarket] = useState({ repo: 6.5, cpi: 4.8, nifty: '24,100', rawContext: '', loading: true })
     const [aiState, setAiState] = useState('idle')   // idle | thinking | done | error
     const [roadmap, setRoadmap] = useState(null)
+    const [apiResponse, setApiResponse] = useState(null) // full backend response
 
     const data = useMemo(() => calcAll(form, goals, market), [form, goals, market])
 
@@ -433,34 +438,80 @@ export default function FirePlanner() {
     function updateGoal(id, k, v) { setGoals(g => g.map(item => item.id === id ? { ...item, [k]: v } : item)) }
     function removeGoal(id) { setGoals(g => g.filter(item => item.id !== id)) }
 
-    // ── Generate roadmap via Anthropic API ────────────────────────────────────
+    // ── Generate roadmap via backend API ────────────────────────────────────
     async function generateRoadmap() {
         if (!form.age || !form.income) return
         setAiState('thinking')
         setRoadmap(null)
 
-        const goalsText = data.processedGoals.map(g =>
-            `- ${g.type}: ₹${g.amount} in ${g.yearsLeft} yrs. Corpus: ${fmtINR(g.corpus)}. SIP: ${fmtINR(g.sip)}/mo. ${g.gap <= 0 ? 'Funded' : 'Gap: ' + fmtINR(g.gap)}`
-        ).join('\n')
+        // Map frontend form to backend FireInput schema
+        const curYear = new Date().getFullYear()
+        const goalsPayload = goals.map((g, i) => ({
+            name: g.type,
+            target_amount: +g.amount || 0,
+            years_to_goal: g.year ? Math.max(+g.year - curYear, 1) : 10,
+            priority: i + 1,
+        }))
 
-        const sys = `You are Artha, expert Indian FIRE advisor. Respond ONLY in valid JSON:
-{"summary":"string","first6Months":["...","...","...","..."],"year1Changes":["...","...","..."],"priorityOrder":["..."],"riskFlags":["..."],"insuranceRecommendation":"string","taxMoves":["...","...","..."],"sipBreakdown":[{"goal":"name","amount":5000,"instrument":"ELSS/Index/etc"}],"assetShiftPlan":"string","monthlyBudgetAdvice":"string"}
-No markdown, no text outside JSON.`
+        // Ensure at least one goal (backend requires min 1)
+        if (goalsPayload.length === 0) {
+            goalsPayload.push({
+                name: 'Retirement',
+                target_amount: data.fireCorpus || 50000000,
+                years_to_goal: Math.max(data.yearsToRetire, 1),
+                priority: 1,
+            })
+        }
 
-        const usr = `Profile: Age ${form.age}, Retire ${form.retireAge}, Income ₹${Number(form.income).toLocaleString('en-IN')}/mo, Expenses ₹${Number(form.expenses).toLocaleString('en-IN')}/mo, Surplus ₹${data.surplus.toLocaleString('en-IN')}/mo, Savings ₹${Number(form.savings).toLocaleString('en-IN')}, Insurance ₹${Number(form.insurance).toLocaleString('en-IN')}, Gap ₹${data.insuranceGap.toLocaleString('en-IN')}, Emergency ₹${data.emergency.toLocaleString('en-IN')}, Equity ${data.equity}%, FIRE Corpus ${fmtINR(data.fireCorpus)}, Total SIP ${fmtINR(data.totalSIP)}
-Goals:\n${goalsText || '(none)'}
-ET RSS — Repo ${market.repo}%, CPI ${market.cpi}%, Nifty ${market.nifty}. ${market.rawContext}
-Generate complete actionable FIRE roadmap using Indian instruments (ELSS, NPS, PPF, SGB, Nifty index funds). Specify amounts.`
+        const payload = {
+            age: +form.age,
+            retirement_age: +form.retireAge,
+            annual_income: (+form.income) * 12,
+            annual_expenses: (+form.expenses) * 12,
+            existing_savings: +form.savings,
+            existing_sip: Math.round(data.totalSIP) || 10000,
+            existing_insurance_cover: +form.insurance,
+            user_email: user?.email || null,
+            goals: goalsPayload,
+        }
 
         try {
-            const res = await fetch('https://api.anthropic.com/v1/messages', {
+            const res = await fetch(`${API_BASE}/fire-planner`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 1500, system: sys, messages: [{ role: 'user', content: usr }] }),
+                body: JSON.stringify(payload),
             })
             const json = await res.json()
-            const raw = json.content?.find(b => b.type === 'text')?.text || ''
-            setRoadmap(JSON.parse(raw.replace(/```json|```/g, '').trim()))
+
+            if (!res.ok) {
+                console.error('FIRE API error:', json)
+                setAiState('error')
+                return
+            }
+
+            setApiResponse(json)
+
+            // Try to parse ai_advice as structured JSON roadmap
+            const aiAdvice = json.ai_advice || ''
+            let parsedRoadmap = null
+            try {
+                parsedRoadmap = JSON.parse(aiAdvice.replace(/```json|```/g, '').trim())
+            } catch {
+                // ai_advice is plain text — build a simple roadmap structure
+                parsedRoadmap = {
+                    summary: aiAdvice,
+                    first6Months: json.goal_plans?.map(g => `Start SIP of ${fmtINR(g.sip_required)}/mo for ${g.name}`) || [],
+                    year1Changes: [`Total monthly SIP: ${fmtINR(json.total_monthly_sip_required)}`, `Additional SIP needed: ${fmtINR(json.additional_sip_needed)}`],
+                    priorityOrder: json.goal_plans?.map(g => g.name) || [],
+                    riskFlags: json.insurance_gap > 0 ? [`Insurance gap of ${fmtINR(json.insurance_gap)}`] : [],
+                    insuranceRecommendation: json.insurance_gap > 0 ? `Cover the ₹${fmtINR(json.insurance_gap)} gap with a term plan` : 'Insurance adequate',
+                    taxMoves: ['Maximize 80C (₹1.5L via ELSS/PPF)', 'Use NPS 80CCD(1B) for extra ₹50K deduction'],
+                    sipBreakdown: json.goal_plans?.map(g => ({ goal: g.name, amount: Math.round(g.sip_required), instrument: g.is_achievable ? 'Equity MF' : 'Index Fund' })) || [],
+                    assetShiftPlan: `${json.asset_allocation?.equity_percent || 70}% equity, ${json.asset_allocation?.debt_percent || 30}% debt`,
+                    monthlyBudgetAdvice: `Monthly surplus: ${fmtINR(json.monthly_surplus)}. Savings rate: ${json.savings_rate_percent?.toFixed(1)}%`,
+                }
+            }
+            setRoadmap(parsedRoadmap)
             setAiState('done')
         } catch (e) {
             console.error(e)

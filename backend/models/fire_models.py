@@ -22,6 +22,7 @@ class FireInput(BaseModel):
     # Personal details
     age: int = Field(..., gt=0, lt=100, description="Current age")
     retirement_age: int = Field(..., gt=0, lt=100, description="Target retirement age")
+    user_email: str | None = Field(None, description="Optional email to save the plan to the database")
 
     # Income and expenses
     annual_income: float = Field(..., gt=0, description="Annual gross income")

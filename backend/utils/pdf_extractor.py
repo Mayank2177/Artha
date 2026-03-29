@@ -42,24 +42,25 @@ async def extract_text_from_upload(file: UploadFile) -> str:
         )
 
 
-def extract_text_from_bytes(pdf_bytes: bytes) -> str:
+def extract_text_from_bytes(pdf_bytes: bytes, password: str = None) -> str:
     """
     Extracts raw text from PDF bytes.
     Useful when PDF is already in memory (e.g. from demo_data).
 
     Args:
         pdf_bytes: Raw PDF file content as bytes
+        password: Optional string containing the PDF password
 
     Returns:
         Raw extracted text as a single string
 
     Raises:
-        HTTPException 422 if PDF is empty or unreadable
+        HTTPException 422 if PDF is empty, unreadable, or password incorrect
     """
     try:
         text = ""
 
-        with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
+        with pdfplumber.open(io.BytesIO(pdf_bytes), password=password) as pdf:
             if not pdf.pages:
                 raise HTTPException(
                     status_code=422,

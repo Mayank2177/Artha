@@ -7,6 +7,9 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useDropzone } from 'react-dropzone'
 import CountUp from 'react-countup'
 import { BarChart3, Upload, FileText, X, Sparkles, Zap, AlertTriangle, TrendingUp, TrendingDown, CheckCircle } from 'lucide-react'
+import { useAuth } from '../context/AuthContext'
+
+const API_BASE = 'http://localhost:8000/api'
 
 // ── Mock portfolio data (simulates backend response) ──────────────────────────
 const MOCK_PORTFOLIO = [
@@ -93,13 +96,98 @@ function ScanAnimation({ onDone }) {
 }
 
 export default function PortfolioXRay() {
+    const { user } = useAuth()
     const [stage, setStage] = useState('upload')  // upload | scanning | result
     const [drawerOpen, setDrawerOpen] = useState(false)
     const [aiText, setAiText] = useState('')
     const [aiTyping, setAiTyping] = useState(false)
+    const [loading, setLoading] = useState(false)
+    const [portfolio, setPortfolio] = useState(MOCK_PORTFOLIO) // dynamic from API
+    const [analysisData, setAnalysisData] = useState(null) // full backend response
+    const [uploadedFile, setUploadedFile] = useState(null)
+    const [pdfPassword, setPdfPassword] = useState('')
+
+    // Compute derived values from current portfolio data
+    const totalValue = portfolio.reduce((a, f) => a + f.value, 0)
+    const avgXirr = totalValue > 0 ? (portfolio.reduce((a, f) => a + f.xirr * f.value, 0) / totalValue).toFixed(1) : '0.0'
+    const overlapCt = portfolio.filter(f => f.overlap).length
+
+    const warnings = [
+        { type: 'danger', icon: AlertTriangle, title: 'Portfolio Overlap Detected', desc: `${overlapCt} funds share identical top-10 holdings. You're paying for the same stocks twice.` },
+        { type: 'warning', icon: TrendingDown, title: 'High Expense Ratio', desc: portfolio.find(f => f.expense > 0.8) ? `${portfolio.find(f => f.expense > 0.8)?.fund} has high expense ratio.` : 'Expense ratios are reasonable.' },
+        { type: 'success', icon: CheckCircle, title: 'Strong XIRR', desc: `Your blended XIRR of ${avgXirr}% ${parseFloat(avgXirr) >= 13 ? 'beats' : 'trails'} Nifty 50 XIRR of 13.2%.` },
+    ]
 
     const onDrop = useCallback((accepted) => {
-        if (accepted.length) setStage('scanning')
+        if (accepted.length) {
+            setUploadedFile(accepted[0])
+            setStage('scanning')
+
+            // Step 1: Upload PDF to extract text
+            const formData = new FormData()
+            formData.append('file', accepted[0])
+            if (pdfPassword.trim()) {
+                formData.append('password', pdfPassword.trim())
+            }
+
+            fetch(`${API_BASE}/mf-xray/upload`, {
+                method: 'POST',
+                body: formData,
+            })
+                .then(async res => {
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok) {
+                        throw new Error(`Upload Failed: ${data.detail || res.statusText}`);
+                    }
+                    if (!data.pdf_text) {
+                        throw new Error('No PDF text extracted.');
+                    }
+                    return data.pdf_text;
+                })
+                .then(pdf_text => {
+                    // Step 2: Analyze extracted text
+                    return fetch(`${API_BASE}/mf-xray`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ pdf_text: pdf_text, user_email: user?.email || null }),
+                    });
+                })
+                .then(async res => {
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok) {
+                        throw new Error(`Analysis Failed: ${data.detail || res.statusText}`);
+                    }
+                    if (!data || !data.holdings) {
+                        throw new Error('Analysis returned empty holdings.');
+                    }
+                    return data;
+                })
+                .then(data => {
+                    setAnalysisData(data)
+                    const mapped = data.holdings.map(h => ({
+                        fund: h.fund_name,
+                        value: Math.round(h.current_value),
+                        xirr: h.xirr != null ? parseFloat(h.xirr.toFixed(1)) : 0,
+                        expense: h.expense_ratio || 0,
+                        overlap: data.overlaps?.some(o => o.fund_a === h.fund_name || o.fund_b === h.fund_name) || false,
+                        action: h.xirr && h.xirr < 8 ? 'Review' : 'Hold',
+                    }))
+                    setPortfolio(mapped)
+                    setStage('result')
+                })
+                .catch(err => {
+                    console.error('MF X-Ray API error:', err)
+                    alert(`Error: ${err.message}\nFalling back to Demo Portfolio.`);
+                    if (user?.email) {
+                        fetch(`${API_BASE}/mf-xray/demo`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ user_email: user.email }),
+                        }).catch(e => console.error(e));
+                    }
+                    setStage('result') // show mock data
+                })
+        }
     }, [])
 
     const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -108,10 +196,13 @@ export default function PortfolioXRay() {
 
     function openAI() {
         setDrawerOpen(true); setAiTyping(true); setAiText('')
+
+        // Use real AI advice if available, otherwise fallback to mock
+        const advice = analysisData?.ai_advice || AI_PORTFOLIO
         let i = 0
         const iv = setInterval(() => {
-            i++; setAiText(AI_PORTFOLIO.slice(0, i * 4))
-            if (i * 4 >= AI_PORTFOLIO.length) { clearInterval(iv); setAiTyping(false); setAiText(AI_PORTFOLIO) }
+            i++; setAiText(advice.slice(0, i * 4))
+            if (i * 4 >= advice.length) { clearInterval(iv); setAiTyping(false); setAiText(advice) }
         }, 14)
     }
 
@@ -209,11 +300,44 @@ export default function PortfolioXRay() {
                             </motion.div>
                         </div>
 
+                        {/* Password Input */}
+                        <div style={{ textAlign: 'center', marginTop: 24, maxWidth: 320, margin: '24px auto 0' }}>
+                            <p style={{ fontSize: 13, color: '#9A9AAD', marginBottom: 8, textAlign: 'left' }}>
+                                PDF Password (usually your PAN)
+                            </p>
+                            <input
+                                type="password"
+                                placeholder="e.g. ABCDE1234F"
+                                value={pdfPassword}
+                                onChange={e => setPdfPassword(e.target.value)}
+                                style={{
+                                    width: '100%', padding: '12px 14px',
+                                    background: '#18181F', border: '1px solid rgba(255,255,255,0.1)',
+                                    borderRadius: 8, color: '#F0F0F5', fontSize: 13,
+                                    outline: 'none', fontFamily: 'Inter, sans-serif'
+                                }}
+                            />
+                        </div>
+
                         {/* Demo shortcut */}
                         <div style={{ textAlign: 'center', marginTop: 20 }}>
                             <motion.button
                                 whileHover={{ color: '#EF4444' }}
-                                onClick={() => setStage('scanning')}
+                                onClick={() => {
+                                    // Demo mode uses the mock data
+                                    setPortfolio(MOCK_PORTFOLIO)
+                                    setAnalysisData(null)
+                                    setStage('scanning')
+                                    
+                                    // Silently write to backend so dashboard updates
+                                    if (user?.email) {
+                                        fetch(`${API_BASE}/mf-xray/demo`, {
+                                            method: 'POST',
+                                            headers: { 'Content-Type': 'application/json' },
+                                            body: JSON.stringify({ user_email: user.email }),
+                                        }).catch(err => console.error("Demo save missed:", err))
+                                    }
+                                }}
                                 style={{
                                     fontSize: 13, color: '#9A9AAD', background: 'none', border: 'none',
                                     cursor: 'pointer', fontFamily: 'Inter, sans-serif', textDecoration: 'underline',
@@ -251,10 +375,10 @@ export default function PortfolioXRay() {
                                     fontVariantNumeric: 'tabular-nums',
                                 }}
                             >
-                                <CountUp end={parseFloat(AVG_XIRR)} duration={1.8} decimals={1} suffix="%" />
+                                <CountUp end={parseFloat(avgXirr)} duration={1.8} decimals={1} suffix="%" />
                             </motion.p>
                             <p style={{ fontSize: 13, color: '#9A9AAD', marginTop: 6 }}>
-                                Portfolio value: ₹{(TOTAL_VALUE / 100000).toFixed(1)}L · {MOCK_PORTFOLIO.length} funds
+                                Portfolio value: ₹{(totalValue / 100000).toFixed(1)}L · {portfolio.length} funds
                             </p>
                         </div>
 
@@ -277,7 +401,7 @@ export default function PortfolioXRay() {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {MOCK_PORTFOLIO.map((f, i) => (
+                                    {portfolio.map((f, i) => (
                                         <motion.tr
                                             key={f.fund}
                                             initial={{ opacity: 0, x: -10 }}
@@ -329,7 +453,7 @@ export default function PortfolioXRay() {
 
                         {/* Warning cards */}
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 18 }}>
-                            {WARNINGS.map((w, i) => {
+                            {warnings.map((w, i) => {
                                 const Icon = w.icon
                                 const col = w.type === 'danger' ? '#EF4444' : w.type === 'warning' ? '#F59E0B' : '#10B981'
                                 return (

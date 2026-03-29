@@ -10,6 +10,9 @@ import {
     ResponsiveContainer, Tooltip,
 } from 'recharts'
 import { X, Sparkles, ChevronRight, RotateCcw, TrendingUp, AlertTriangle, CheckCircle } from 'lucide-react'
+import { useAuth } from '../context/AuthContext'
+
+const API_BASE = 'http://localhost:8000/api'
 
 // ── 12 Questions across 6 dimensions ─────────────────────────────────────────
 const QUESTIONS = [
@@ -42,24 +45,17 @@ const DIM_COLORS = {
     Tax: '#E8272A',
 }
 
-// ── AI mock response ───────────────────────────────────────────────────────────
-const AI_RESPONSE = `Your financial health score of **72/100** places you in the "Good" bracket — but there's real money left on the table.
-
-**Top 3 priorities by impact:**
-
-1. **Emergency fund gap** — You have ~2 months covered. Redirect ₹8,000/mo for 4 months to close this. Use a liquid mutual fund, not savings account.
-
-2. **Insurance under-coverage** — Your current term cover is below 10x annual income. A ₹1 Cr term plan costs ~₹700/month at age 32. Do this today.
-
-3. **Tax regime switch** — Based on your deductions, the Old Regime saves you approximately ₹18,400 vs New Regime for FY 2024-25. Switch before March 31.
-
-**One free action this week:** Open a liquid fund SIP of ₹5,000 for your emergency fund. Takes 10 minutes on any MF platform.`
+// ── DEFAULT RESPONSE (fallback only) ───────────────────────────────────
+const DEFAULT_AI_RESPONSE = `Your financial health analysis is complete. Review your dimension scores above to understand your financial strengths and areas for improvement.`
 
 // ── COMPONENT ─────────────────────────────────────────────────────────────────
 export default function MoneyHealth() {
+    const { user } = useAuth()
     const [step, setStep] = useState(0)          // 0..11 = quiz, 12 = result
     const [answers, setAnswers] = useState([])          // point values
     const [selected, setSelected] = useState(null)        // current selection index
+    const [selectedOptions, setSelectedOptions] = useState([]) // {qid, opt} per question
+    const [loading, setLoading] = useState(false)
     const [drawerOpen, setDrawerOpen] = useState(false)
     const [aiTyping, setAiTyping] = useState(false)
     const [aiText, setAiText] = useState('')
@@ -92,12 +88,34 @@ export default function MoneyHealth() {
 
     function nextQuestion() {
         if (selected === null) return
+        const option = String.fromCharCode(65 + selected) // A, B, C, D
         const pts = QUESTIONS[step].pts[selected]
-        const newAnswers = [...answers, pts]
-        setAnswers(newAnswers)
+        const newSelectedOptions = [...selectedOptions, { qid: step + 1, opt: option }]
+        
+        setSelectedOptions(newSelectedOptions)
+        setAnswers([...answers, pts])
         setSelected(null)
+        
         if (step === 11) {
             setStep(12)
+            
+            // Background silent save to db
+            if (user?.email) {
+                const payload = {
+                    answers: newSelectedOptions.map((a) => ({
+                        question_id: a.qid,
+                        selected_option: a.opt,
+                    })),
+                    user_name: user?.name?.split(' ')[0] || 'User',
+                    user_email: user.email,
+                    skip_ai: true,
+                }
+                fetch(`${API_BASE}/money-health`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                }).catch(e => console.error(e))
+            }
         } else {
             setStep(step + 1)
         }
@@ -107,21 +125,51 @@ export default function MoneyHealth() {
         setDrawerOpen(true)
         setAiTyping(true)
         setAiText('')
-        // Typewriter effect
-        let i = 0
-        const interval = setInterval(() => {
-            i++
-            setAiText(AI_RESPONSE.slice(0, i * 3))
-            if (i * 3 >= AI_RESPONSE.length) {
-                clearInterval(interval)
+        setLoading(true)
+
+        // Call backend API
+        const payload = {
+            answers: selectedOptions.map((a) => ({
+                question_id: a.qid,
+                selected_option: a.opt,
+            })),
+            user_name: user?.name?.split(' ')[0] || 'User',
+            user_email: user?.email || null,
+        }
+
+        fetch(`${API_BASE}/money-health`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        })
+            .then((res) => res.json())
+            .then((data) => {
+                setLoading(false)
+                const advice = data.ai_advice || DEFAULT_AI_RESPONSE
+
+                // Typewriter effect
+                let i = 0
+                const interval = setInterval(() => {
+                    i++
+                    setAiText(advice.slice(0, i * 3))
+                    if (i * 3 >= advice.length) {
+                        clearInterval(interval)
+                        setAiTyping(false)
+                        setAiText(advice)
+                    }
+                }, 18)
+            })
+            .catch((err) => {
+                setLoading(false)
                 setAiTyping(false)
-                setAiText(AI_RESPONSE)
-            }
-        }, 18)
+                setAiText('Error fetching advice. Please try again.')
+                console.error('API Error:', err)
+            })
     }
 
     function reset() {
         setStep(0); setAnswers([]); setSelected(null)
+        setSelectedOptions([]); setLoading(false)
         setDrawerOpen(false); setAiText('')
     }
 

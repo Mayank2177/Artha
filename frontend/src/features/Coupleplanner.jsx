@@ -7,6 +7,8 @@ import { motion, AnimatePresence } from 'framer-motion'
 import CountUp from 'react-countup'
 import { Users, Sparkles, X, Zap, Heart, TrendingUp, Shield, IndianRupee, CheckCircle } from 'lucide-react'
 
+const API_BASE = 'http://localhost:8000/api'
+
 const INPUT_STYLE = {
     width: '100%', background: '#18181F',
     border: '1px solid rgba(255,255,255,0.08)',
@@ -80,6 +82,7 @@ export default function CouplePlanner() {
     const [drawerOpen, setDrawerOpen] = useState(false)
     const [aiText, setAiText] = useState('')
     const [aiTyping, setAiTyping] = useState(false)
+    const [loading, setLoading] = useState(false)
 
     function setA(k, v) { setPartnerA(p => ({ ...p, [k]: isNaN(Number(v)) ? v : Number(v) })) }
     function setB(k, v) { setPartnerB(p => ({ ...p, [k]: isNaN(Number(v)) ? v : Number(v) })) }
@@ -87,12 +90,67 @@ export default function CouplePlanner() {
     function compute() { setComputed(calcCouple(partnerA, partnerB)) }
 
     function openAI() {
-        setDrawerOpen(true); setAiTyping(true); setAiText('')
-        let i = 0
-        const iv = setInterval(() => {
-            i++; setAiText(AI_COUPLE.slice(0, i * 4))
-            if (i * 4 >= AI_COUPLE.length) { clearInterval(iv); setAiTyping(false); setAiText(AI_COUPLE) }
-        }, 14)
+        setDrawerOpen(true); setAiTyping(true); setAiText(''); setLoading(true)
+
+        // Map frontend fields to backend CouplesInput schema
+        const payload = {
+            partner_a: {
+                name: partnerA.name,
+                annual_income: partnerA.income,
+                tax_bracket: partnerA.income >= 1000000 ? 0.30 : partnerA.income >= 500000 ? 0.20 : 0.05,
+                basic_salary: Math.round(partnerA.income * 0.5),
+                hra_received: partnerA.hra,
+                annual_rent_paid: partnerA.rent * 12,
+                is_metro: true,
+                section_80c_invested: partnerA.savings80C,
+                nps_invested: 0,
+                existing_life_cover: partnerA.insurance,
+                existing_health_cover: 500000,
+                assets: partnerA.savings + partnerA.investments,
+                liabilities: partnerA.debt,
+            },
+            partner_b: {
+                name: partnerB.name,
+                annual_income: partnerB.income,
+                tax_bracket: partnerB.income >= 1000000 ? 0.30 : partnerB.income >= 500000 ? 0.20 : 0.05,
+                basic_salary: Math.round(partnerB.income * 0.5),
+                hra_received: partnerB.hra,
+                annual_rent_paid: partnerB.rent * 12,
+                is_metro: true,
+                section_80c_invested: partnerB.savings80C,
+                nps_invested: 0,
+                existing_life_cover: partnerB.insurance,
+                existing_health_cover: 300000,
+                assets: partnerB.savings + partnerB.investments,
+                liabilities: partnerB.debt,
+            },
+        }
+
+        fetch(`${API_BASE}/couples-planner`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        })
+            .then(res => res.json())
+            .then(data => {
+                setLoading(false)
+                const advice = data.ai_advice || AI_COUPLE
+                let i = 0
+                const iv = setInterval(() => {
+                    i++; setAiText(advice.slice(0, i * 4))
+                    if (i * 4 >= advice.length) { clearInterval(iv); setAiTyping(false); setAiText(advice) }
+                }, 14)
+            })
+            .catch(err => {
+                console.error('Couples API error:', err)
+                setLoading(false)
+                // Fallback to mock
+                let i = 0
+                const iv = setInterval(() => {
+                    i++; setAiText(AI_COUPLE.slice(0, i * 4))
+                    if (i * 4 >= AI_COUPLE.length) { clearInterval(iv); setAiTyping(false); setAiText(AI_COUPLE) }
+                }, 14)
+            })
     }
 
     const Label = ({ children }) => (

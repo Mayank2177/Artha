@@ -1,4 +1,7 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
+from sqlalchemy.orm import Session
+from database import get_db
+from models.db_models import User, Portfolio
 from models.xray_models import (
     XRayInput, XRayResponse, Transaction,
     FundHolding, OverlapPair, ExpenseRatioDrag
@@ -90,10 +93,12 @@ def group_transactions_by_fund(
 
 # ── PDF Upload Endpoint ──────────────────────────────────────────
 
+from fastapi import Form
+
 @router.post("/mf-xray/upload")
-async def upload_pdf(file: UploadFile = File(...)):
+async def upload_pdf(file: UploadFile = File(...), password: str = Form(None)):
     """
-    Step 0 — Accepts the raw PDF upload from React Dropzone.
+    Step 0 — Accepts the raw PDF upload from React Dropzone and an optional password.
     Extracts text using pdfplumber and returns it as a string.
     React then sends this text to /mf-xray for analysis.
 
@@ -106,7 +111,7 @@ async def upload_pdf(file: UploadFile = File(...)):
 
     try:
         pdf_bytes = await file.read()
-        raw_text = extract_text_from_pdf(pdf_bytes)
+        raw_text = extract_text_from_pdf(pdf_bytes, password=password)
     except Exception as e:
         raise HTTPException(status_code=422, detail=f"PDF extraction failed: {str(e)}")
 
@@ -122,7 +127,7 @@ async def upload_pdf(file: UploadFile = File(...)):
 # ── Main Analysis Endpoint ───────────────────────────────────────
 
 @router.post("/mf-xray", response_model=XRayResponse)
-async def mf_xray(payload: XRayInput):
+async def mf_xray(payload: XRayInput, db: Session = Depends(get_db)):
     """
     Main MF Portfolio X-Ray endpoint.
     Follows the Collect → Compute → Advise pattern.
@@ -267,6 +272,19 @@ async def mf_xray(payload: XRayInput):
             "AI narrative advice is temporarily unavailable — please try again in a moment."
         )
 
+    # ── SAVE TO DB (Optional) ─────────────────────────────────────
+    if payload.user_email:
+        user = db.query(User).filter(User.email == payload.user_email).first()
+        if user:
+            db_result = Portfolio(
+                user_id=user.id,
+                total_value=total_portfolio_value,
+                xirr=overall_xirr,
+                fund_count=len(holdings)
+            )
+            db.add(db_result)
+            db.commit()
+
     # ── STEP 4: BUILD and return final response ───────────────────
     return XRayResponse(
         holdings=holdings,
@@ -283,6 +301,29 @@ async def mf_xray(payload: XRayInput):
         high_overlap_warning=any(o.overlap_percentage > 60 for o in overlaps),
         rebalancing_needed=len(overlaps) > 0 or total_expense_drag > 10000,
     )
+
+# ── Demo Endpoint ────────────────────────────────────────────────
+from pydantic import BaseModel
+
+class DemoInput(BaseModel):
+    user_email: str
+
+@router.post("/mf-xray/demo")
+async def save_demo_portfolio(payload: DemoInput, db: Session = Depends(get_db)):
+    """Saves the hardcoded mock frontend data to the database for testing"""
+    if payload.user_email:
+        user = db.query(User).filter(User.email == payload.user_email).first()
+        if user:
+            # 812000 value, 15.4 XIRR, 6 funds (matches frontend MOCK_PORTFOLIO)
+            db_result = Portfolio(
+                user_id=user.id,
+                total_value=812000,
+                xirr=15.4,
+                fund_count=6
+            )
+            db.add(db_result)
+            db.commit()
+    return {"status": "success"}
 
 
 # ── Internal helper for fallback path ───────────────────────────

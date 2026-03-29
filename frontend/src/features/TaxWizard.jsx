@@ -7,6 +7,9 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useDropzone } from 'react-dropzone'
 import CountUp from 'react-countup'
 import { FileText, Upload, X, Sparkles, Zap, CheckCircle, AlertTriangle, ChevronDown } from 'lucide-react'
+import { useAuth } from '../context/AuthContext'
+
+const API_BASE = 'http://localhost:8000/api'
 
 const INPUT_STYLE = {
     width: '100%', background: '#18181F',
@@ -76,13 +79,37 @@ Based on your income of ₹12L and current deductions, the **Old Regime saves yo
 
 // ─── Dropzone ─────────────────────────────────────────────────────────────────
 function PDFDropzone({ onFile }) {
+    const { user } = useAuth()
     const [scanning, setScanning] = useState(false)
     const [done, setDone] = useState(false)
 
     const onDrop = useCallback((accepted) => {
         if (!accepted.length) return
         setScanning(true)
-        setTimeout(() => { setScanning(false); setDone(true); onFile(accepted[0].name) }, 2200)
+
+        // Upload to backend
+        const formData = new FormData()
+        formData.append('file', accepted[0])
+        if (user?.email) {
+            formData.append('user_email', user.email)
+        }
+
+        fetch(`${API_BASE}/tax-wizard/pdf`, {
+            method: 'POST',
+            body: formData,
+        })
+            .then(res => res.json())
+            .then(data => {
+                setScanning(false)
+                setDone(true)
+                onFile(data) // pass full API response
+            })
+            .catch(err => {
+                console.error('PDF upload error:', err)
+                setScanning(false)
+                setDone(true)
+                onFile(null) // signal error
+            })
     }, [onFile])
 
     const { getRootProps, getInputProps, isDragActive } = useDropzone({ onDrop, accept: { 'application/pdf': ['.pdf'] }, maxFiles: 1 })
@@ -140,6 +167,7 @@ function PDFDropzone({ onFile }) {
 }
 
 export default function TaxWizard() {
+    const { user } = useAuth()
     const [mode, setMode] = useState('manual')  // 'manual' | 'upload'
     const [form, setForm] = useState({
         income: 1200000, hra: 180000, rent: 20000,
@@ -149,18 +177,79 @@ export default function TaxWizard() {
     const [drawerOpen, setDrawerOpen] = useState(false)
     const [aiText, setAiText] = useState('')
     const [aiTyping, setAiTyping] = useState(false)
+    const [loading, setLoading] = useState(false)
+    const [apiResult, setApiResult] = useState(null) // full backend response
 
     function set(k, v) { setForm(prev => ({ ...prev, [k]: Number(v) })) }
 
-    function compute() { setComputed(calcTax(form)) }
+    function compute() { 
+        setComputed(calcTax(form))
+        
+        // Background silent save to db
+        if (user?.email) {
+            const payload = {
+                annual_ctc: form.income,
+                basic_salary: Math.round(form.income * 0.5),
+                hra_received: form.hra,
+                is_metro: true,
+                annual_rent_paid: form.rent * 12,
+                section_80c: form.deductions80C,
+                section_80d: form.deductions80D,
+                section_80ccd_1b: form.nps,
+                age: 30,
+                user_email: user.email,
+                skip_ai: true,
+            }
+            fetch(`${API_BASE}/tax-wizard/manual`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            }).catch(e => console.error(e))
+        }
+    }
 
     function openAI() {
-        setDrawerOpen(true); setAiTyping(true); setAiText('')
-        let i = 0
-        const iv = setInterval(() => {
-            i++; setAiText(AI_TAX.slice(0, i * 4))
-            if (i * 4 >= AI_TAX.length) { clearInterval(iv); setAiTyping(false); setAiText(AI_TAX) }
-        }, 15)
+        setDrawerOpen(true); setAiTyping(true); setAiText(''); setLoading(true)
+
+        // Map frontend form to backend ManualTaxInput schema
+        const payload = {
+            annual_ctc: form.income,
+            basic_salary: Math.round(form.income * 0.5),
+            hra_received: form.hra,
+            is_metro: true,
+            annual_rent_paid: form.rent * 12,
+            section_80c: form.deductions80C,
+            section_80d: form.deductions80D,
+            section_80ccd_1b: form.nps,
+            age: 30,
+            user_email: user?.email || null,
+        }
+
+        fetch(`${API_BASE}/tax-wizard/manual`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        })
+            .then(res => res.json())
+            .then(data => {
+                setLoading(false)
+                setApiResult(data)
+                const advice = data.ai_advice || AI_TAX
+                let i = 0
+                const iv = setInterval(() => {
+                    i++; setAiText(advice.slice(0, i * 4))
+                    if (i * 4 >= advice.length) { clearInterval(iv); setAiTyping(false); setAiText(advice) }
+                }, 15)
+            })
+            .catch(err => {
+                console.error('Tax API error:', err)
+                setLoading(false)
+                let i = 0
+                const iv = setInterval(() => {
+                    i++; setAiText(AI_TAX.slice(0, i * 4))
+                    if (i * 4 >= AI_TAX.length) { clearInterval(iv); setAiTyping(false); setAiText(AI_TAX) }
+                }, 15)
+            })
     }
 
     const Label = ({ children }) => (
@@ -265,7 +354,28 @@ export default function TaxWizard() {
             <AnimatePresence mode="wait">
                 {mode === 'upload' ? (
                     <motion.div key="upload" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                        <PDFDropzone onFile={() => setTimeout(compute, 2400)} />
+                        <PDFDropzone onFile={(data) => {
+                            if (data && data.ai_advice) {
+                                setApiResult(data)
+                                // Use backend results for display
+                                const oldTax = data.old_regime?.total_tax || 0
+                                const newTax = data.new_regime?.total_tax || 0
+                                setComputed({
+                                    taxOld: Math.round(oldTax),
+                                    taxNew: Math.round(newTax),
+                                    betterOld: oldTax < newTax,
+                                    saving: Math.abs(oldTax - newTax),
+                                    missed: (data.missed_deductions || []).map(m => ({
+                                        head: m.section,
+                                        limit: `₹${(m.max_limit/1000).toFixed(0)}K`,
+                                        used: `₹${(m.utilized/1000).toFixed(0)}K`,
+                                        potential: `₹${(m.potential_tax_saving/1000).toFixed(0)}K saved`,
+                                    })),
+                                })
+                            } else {
+                                compute()
+                            }
+                        }} />
                     </motion.div>
                 ) : (
                     <motion.div key="manual" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
