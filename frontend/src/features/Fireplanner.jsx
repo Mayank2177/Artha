@@ -774,6 +774,8 @@ export default function FirePlanner() {
                                     </Pie>
                                     <Tooltip
                                         contentStyle={{ background: T.surface2, border: `1px solid ${T.border}`, borderRadius: 7, fontSize: 11, color: T.text }}
+                                        itemStyle={{ color: '#E0E0E0' }}
+                                        labelStyle={{ color: '#9A9AAD' }}
                                         formatter={(v, n) => [`${v}%`, n]}
                                     />
                                 </PieChart>
@@ -798,6 +800,8 @@ export default function FirePlanner() {
                                     />
                                     <Tooltip
                                         contentStyle={{ background: T.surface2, border: `1px solid ${T.border}`, borderRadius: 7, fontSize: 11, color: T.text }}
+                                        itemStyle={{ color: '#E0E0E0' }}
+                                        labelStyle={{ color: '#9A9AAD' }}
                                         formatter={v => [fmtINR(v), 'Portfolio']}
                                     />
                                     <Line type="monotone" dataKey="value" stroke={T.red} strokeWidth={2} dot={false} />
