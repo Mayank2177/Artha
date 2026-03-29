@@ -9,6 +9,7 @@ Artha is a beautiful, full-stack AI-powered personal finance dashboard and advis
 - **FIRE Planner**: Graphically tracks your path to Financial Independence / Retire Early (FIRE) by calculating your target corpus, inflation-adjusted expenses, and exactly how much SIP you need to run today.
 - **Tax Wizard**: An interactive Old vs. New Regime calculator tailored for the latest Indian budget. Computes the most efficient tax route, highlights HRA & 80C deductions, and visualizes exactly how to keep more of your salary.
 - **MF Portfolio X-Ray**: A powerful PDF extraction pipeline. Drop your CAMS / KFintech Consolidated Account Statement (password supported) into the analyzer to instantly compute your true portfolio XIRR, flag dangerous fund overlaps (where you pay double expense ratios for the same stocks), and receive a 3-step AI rebalancing plan.
+- **Live Market News**: Keeps you connected to the pulse of dynamic Indian markets by natively streaming real-time financial headlines using the Economic Times (ET) RSS feed.
 
 ## Tech Stack
 
