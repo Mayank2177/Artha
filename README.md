@@ -1,4 +1,4 @@
-# Artha — AI Money Mentor
+# Artha - AI Money Mentor
 
 Artha is a beautiful, full-stack AI-powered personal finance dashboard and advisory platform engineered to help Indian millennials navigate their wealth. By combining powerful deterministic financial mathematics (like `pyxirr`) with the reasoning capabilities of Groq (LLaMA 3.3 70B & LLaMA 3.1 8B), Artha acts as a deeply personalized digital financial advisor.
 
