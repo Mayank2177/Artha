@@ -1,51 +1,42 @@
 // ─────────────────────────────────────────────────────────────────────────────
 //  ARTHA — Dashboard Shell
-//  Sidebar navigation + Topbar + renders active feature panel
+//  Uses React Router <Outlet> — each feature is a real URL route
+//  /dashboard            → Overview
+//  /dashboard/health     → Money Health Score
+//  /dashboard/fire       → FIRE Path Planner
+//  /dashboard/tax        → Tax Wizard
+//  /dashboard/portfolio  → MF Portfolio X-Ray
+//  /dashboard/couple     → Couple's Money Planner
 // ─────────────────────────────────────────────────────────────────────────────
-import { useState } from 'react'
+import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { useNavigate } from 'react-router-dom'
 import {
     LayoutDashboard, Heart, Flame, FileText,
     BarChart3, Users, ArrowLeft, Bell, ChevronRight,
-    TrendingUp, IndianRupee, Wallet, Activity,
 } from 'lucide-react'
-import CountUp from 'react-countup'
 
-import MoneyHealth from '../features/MoneyHealth.jsx'
-import FirePlanner from '../features/Fireplanner.jsx'
-import TaxWizard from '../features/TaxWizard.jsx'
-import PortfolioXRay from '../features/PortfolioXray.jsx'
-import CouplePlanner from '../features/Coupleplanner.jsx'
-
-// ─── NAV ITEMS ───────────────────────────────────────────────────────────────
+// ─── ROUTE MAP ────────────────────────────────────────────────────────────────
 const NAV = [
-    { id: 'overview', label: 'Overview', icon: LayoutDashboard, color: '#9A9AAD' },
-    { id: 'health', label: 'Money Health', icon: Heart, color: '#10B981' },
-    { id: 'fire', label: 'FIRE Planner', icon: Flame, color: '#F59E0B' },
-    { id: 'tax', label: 'Tax Wizard', icon: FileText, color: '#F59E0B' },
-    { id: 'portfolio', label: 'Portfolio X-Ray', icon: BarChart3, color: '#EF4444' },
-    { id: 'couple', label: "Couple's Planner", icon: Users, color: '#8B5CF6' },
+    { path: '/dashboard', id: 'overview', label: 'Overview', icon: LayoutDashboard, color: '#9A9AAD' },
+    { path: '/dashboard/health', id: 'health', label: 'Money Health', icon: Heart, color: '#10B981' },
+    { path: '/dashboard/fire', id: 'fire', label: 'FIRE Planner', icon: Flame, color: '#F59E0B' },
+    { path: '/dashboard/tax', id: 'tax', label: 'Tax Wizard', icon: FileText, color: '#F59E0B' },
+    { path: '/dashboard/portfolio', id: 'portfolio', label: 'Portfolio X-Ray', icon: BarChart3, color: '#EF4444' },
+    { path: '/dashboard/couple', id: 'couple', label: "Couple's Planner", icon: Users, color: '#8B5CF6' },
 ]
 
-// ─── OVERVIEW CARDS ──────────────────────────────────────────────────────────
-const OVERVIEW_STATS = [
-    { label: 'Money Health Score', value: 72, suffix: '/100', color: '#10B981', icon: Heart, change: '+4 pts this month', up: true },
-    { label: 'Net Worth', value: 18.4, suffix: 'L', color: '#F0F0F5', icon: Wallet, change: '₹1.2L growth YTD', up: true },
-    { label: 'Monthly Savings', value: 28500, suffix: '', color: '#F59E0B', icon: IndianRupee, change: '-₹2,000 vs last month', up: false },
-    { label: 'Investments', value: 12.8, suffix: 'L', color: '#10B981', icon: TrendingUp, change: 'XIRR 14.2%', up: true },
-]
-
-const INSIGHTS = [
-    { dot: '#EF4444', title: 'Biggest risk', sub: 'Emergency fund covers only 2 months — target is 6' },
-    { dot: '#F59E0B', title: 'Tax opportunity', sub: '₹25,000 savings available via 80D before March 31' },
-    { dot: '#10B981', title: 'FIRE on track', sub: 'SIP of ₹18,400/mo keeps retirement target at age 45' },
-    { dot: '#8B5CF6', title: 'Portfolio overlap alert', sub: '3 funds hold identical top-10 stocks — consider merging' },
-]
+// Returns the current active nav item based on pathname
+function useActiveNav() {
+    const { pathname } = useLocation()
+    // Match longest path first so /dashboard/health beats /dashboard
+    return [...NAV].reverse().find(n => pathname.startsWith(n.path)) ?? NAV[0]
+}
 
 // ─── SIDEBAR ─────────────────────────────────────────────────────────────────
-function Sidebar({ active, setActive }) {
+function Sidebar() {
     const navigate = useNavigate()
+    const activeItem = useActiveNav()
+
     return (
         <aside style={{
             width: 228, flexShrink: 0,
@@ -56,10 +47,7 @@ function Sidebar({ active, setActive }) {
             zIndex: 50,
         }}>
             {/* Logo */}
-            <div style={{
-                padding: '22px 24px 18px',
-                borderBottom: '1px solid rgba(255,255,255,0.06)',
-            }}>
+            <div style={{ padding: '22px 24px 18px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
                 <div style={{
                     fontFamily: "'Playfair Display', serif",
                     fontSize: 24, fontWeight: 800, letterSpacing: '-0.5px',
@@ -77,55 +65,52 @@ function Sidebar({ active, setActive }) {
                 </p>
             </div>
 
-            {/* Nav items */}
-            <nav style={{ padding: '14px 12px', flex: 1 }}>
+            {/* Nav */}
+            <nav style={{ padding: '14px 12px', flex: 1, overflowY: 'auto' }}>
                 <p style={{
                     fontSize: 9, color: '#9A9AAD', letterSpacing: '2px',
-                    textTransform: 'uppercase', padding: '0 12px', marginBottom: 8,
+                    textTransform: 'uppercase', padding: '0 12px', marginBottom: 10,
                 }}>
                     Modules
                 </p>
+
                 {NAV.map((item) => {
                     const Icon = item.icon
-                    const isActive = active === item.id
+                    const isActive = activeItem.id === item.id
                     return (
                         <motion.button
                             key={item.id}
-                            onClick={() => setActive(item.id)}
+                            onClick={() => navigate(item.path)}
                             whileHover={{ x: 3 }}
                             transition={{ type: 'spring', stiffness: 400, damping: 25 }}
                             style={{
                                 display: 'flex', alignItems: 'center', gap: 10,
                                 width: '100%', padding: '10px 12px',
                                 borderRadius: 10, marginBottom: 2,
-                                background: isActive
-                                    ? `${item.color}15`
-                                    : 'transparent',
-                                border: `1px solid ${isActive ? item.color + '30' : 'transparent'}`,
+                                background: isActive ? `${item.color}15` : 'transparent',
+                                border: `1px solid ${isActive ? item.color + '35' : 'transparent'}`,
                                 color: isActive ? '#F0F0F5' : '#9A9AAD',
                                 fontSize: 13, fontWeight: isActive ? 600 : 400,
                                 cursor: 'pointer', textAlign: 'left',
-                                transition: 'background 0.2s, color 0.2s, border-color 0.2s',
                                 fontFamily: 'Inter, sans-serif',
+                                transition: 'background 0.2s, color 0.2s, border-color 0.2s',
                             }}
                         >
                             <div style={{
                                 width: 28, height: 28, borderRadius: 7,
-                                background: isActive ? `${item.color}20` : 'rgba(255,255,255,0.04)',
+                                background: isActive ? `${item.color}22` : 'rgba(255,255,255,0.04)',
                                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                flexShrink: 0,
-                                transition: 'background 0.2s',
+                                flexShrink: 0, transition: 'background 0.2s',
                             }}>
                                 <Icon size={14} color={isActive ? item.color : '#9A9AAD'} strokeWidth={2} />
                             </div>
-                            {item.label}
+
+                            <span style={{ flex: 1 }}>{item.label}</span>
+
                             {isActive && (
                                 <motion.div
-                                    layoutId="sidebarIndicator"
-                                    style={{
-                                        marginLeft: 'auto', width: 5, height: 5,
-                                        borderRadius: '50%', background: item.color,
-                                    }}
+                                    layoutId="sidebarDot"
+                                    style={{ width: 5, height: 5, borderRadius: '50%', background: item.color, flexShrink: 0 }}
                                 />
                             )}
                         </motion.button>
@@ -133,24 +118,24 @@ function Sidebar({ active, setActive }) {
                 })}
             </nav>
 
-            {/* Back to landing */}
+            {/* Bottom — back + user chip */}
             <div style={{ padding: '16px 12px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
                 <motion.button
-                    whileHover={{ x: -2 }}
+                    whileHover={{ x: -2, color: '#F0F0F5' }}
                     onClick={() => navigate('/')}
                     style={{
                         display: 'flex', alignItems: 'center', gap: 8,
                         color: '#9A9AAD', fontSize: 12, fontWeight: 500,
                         background: 'none', border: 'none', cursor: 'pointer',
                         padding: '8px 12px', borderRadius: 8, width: '100%',
-                        fontFamily: 'Inter, sans-serif',
-                        transition: 'color 0.2s',
+                        fontFamily: 'Inter, sans-serif', transition: 'color 0.2s',
                     }}
                 >
                     <ArrowLeft size={14} /> Back to Home
                 </motion.button>
+
                 <div style={{
-                    margin: '12px 12px 0',
+                    margin: '10px 0 0',
                     display: 'flex', alignItems: 'center', gap: 10,
                     padding: '10px 12px',
                     background: 'rgba(255,255,255,0.04)',
@@ -173,8 +158,10 @@ function Sidebar({ active, setActive }) {
 }
 
 // ─── TOPBAR ──────────────────────────────────────────────────────────────────
-function Topbar({ active }) {
-    const item = NAV.find(n => n.id === active)
+function Topbar() {
+    const activeItem = useActiveNav()
+    const Icon = activeItem.icon
+
     return (
         <header style={{
             height: 56, background: '#08080E',
@@ -184,12 +171,14 @@ function Topbar({ active }) {
             position: 'sticky', top: 0, zIndex: 40,
         }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                {item && <item.icon size={15} color={item.color} strokeWidth={2} />}
-                <span style={{ fontSize: 14, fontWeight: 600, color: '#F0F0F5' }}>{item?.label ?? 'Dashboard'}</span>
+                <Icon size={15} color={activeItem.color} strokeWidth={2} />
+                <span style={{ fontSize: 14, fontWeight: 600, color: '#F0F0F5' }}>{activeItem.label}</span>
                 <ChevronRight size={13} color="#9A9AAD" />
                 <span style={{ fontSize: 12, color: '#9A9AAD' }}>Arjun Mehta</span>
             </div>
+
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                {/* ET Live badge */}
                 <div style={{
                     display: 'flex', alignItems: 'center', gap: 6,
                     background: 'rgba(232,39,42,0.1)',
@@ -205,6 +194,8 @@ function Topbar({ active }) {
                         ET LIVE
                     </span>
                 </div>
+
+                {/* Notification */}
                 <motion.button
                     whileHover={{ background: 'rgba(255,255,255,0.06)' }}
                     style={{
@@ -218,9 +209,8 @@ function Topbar({ active }) {
                 >
                     <Bell size={14} />
                     <span style={{
-                        position: 'absolute', top: 6, right: 6,
-                        width: 6, height: 6, borderRadius: '50%',
-                        background: '#E8272A',
+                        position: 'absolute', top: 7, right: 7,
+                        width: 6, height: 6, borderRadius: '50%', background: '#E8272A',
                     }} />
                 </motion.button>
             </div>
@@ -228,224 +218,16 @@ function Topbar({ active }) {
     )
 }
 
-// ─── OVERVIEW PANEL ───────────────────────────────────────────────────────────
-function Overview({ setActive }) {
-    return (
-        <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -16 }}
-            transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
-            style={{ padding: '28px 28px 40px' }}
-        >
-            {/* Header */}
-            <div style={{ marginBottom: 28 }}>
-                <h1 style={{
-                    fontFamily: "'Playfair Display', serif",
-                    fontSize: 28, fontWeight: 800, letterSpacing: '-0.5px',
-                    marginBottom: 4,
-                }}>
-                    Good morning, Arjun.
-                </h1>
-                <p style={{ fontSize: 13, color: '#9A9AAD' }}>
-                    Here's your financial command center — last updated today.
-                </p>
-            </div>
-
-            {/* Stat cards */}
-            <div style={{
-                display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)',
-                gap: 14, marginBottom: 22,
-            }}>
-                {OVERVIEW_STATS.map((s, i) => {
-                    const Icon = s.icon
-                    return (
-                        <motion.div
-                            key={i}
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: i * 0.07, duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-                            whileHover={{ y: -3, boxShadow: '0 16px 40px rgba(0,0,0,0.4)' }}
-                            style={{
-                                background: '#111118',
-                                border: '1px solid rgba(255,255,255,0.07)',
-                                borderRadius: 16, padding: '20px',
-                                position: 'relative', overflow: 'hidden',
-                            }}
-                        >
-                            {/* Top accent line */}
-                            <div style={{
-                                position: 'absolute', top: 0, left: 0, right: 0, height: 2,
-                                background: `linear-gradient(90deg, ${s.color}, transparent)`,
-                            }} />
-                            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 14 }}>
-                                <p style={{ fontSize: 11, color: '#9A9AAD', letterSpacing: '0.3px' }}>{s.label}</p>
-                                <div style={{
-                                    width: 28, height: 28, borderRadius: 7,
-                                    background: `${s.color}15`,
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                }}>
-                                    <Icon size={13} color={s.color} strokeWidth={2} />
-                                </div>
-                            </div>
-                            <p style={{
-                                fontFamily: "'Playfair Display', serif",
-                                fontSize: 30, fontWeight: 800,
-                                color: s.color, lineHeight: 1,
-                                fontVariantNumeric: 'tabular-nums',
-                                marginBottom: 8,
-                            }}>
-                                <CountUp
-                                    end={s.value} duration={1.4} decimals={s.suffix === 'L' ? 1 : 0}
-                                    prefix={s.suffix === '' && s.value > 999 ? '₹' : ''}
-                                    separator=","
-                                    suffix={s.suffix}
-                                    useEasing
-                                />
-                            </p>
-                            <p style={{
-                                fontSize: 11,
-                                color: s.up ? '#10B981' : '#EF4444',
-                            }}>
-                                {s.up ? '↑' : '↓'} {s.change}
-                            </p>
-                        </motion.div>
-                    )
-                })}
-            </div>
-
-            {/* Insights + Quick actions */}
-            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 14 }}>
-                {/* Insights */}
-                <motion.div
-                    initial={{ opacity: 0, y: 16 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.3, duration: 0.5 }}
-                    style={{
-                        background: '#111118',
-                        border: '1px solid rgba(255,255,255,0.07)',
-                        borderRadius: 16, padding: '22px',
-                    }}
-                >
-                    <p style={{ fontSize: 12, fontWeight: 600, color: '#9A9AAD', marginBottom: 16, letterSpacing: '0.5px' }}>
-                        QUICK INSIGHTS
-                    </p>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                        {INSIGHTS.map((ins, i) => (
-                            <motion.div
-                                key={i}
-                                initial={{ opacity: 0, x: -10 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                transition={{ delay: 0.35 + i * 0.07 }}
-                                style={{
-                                    display: 'flex', gap: 12, alignItems: 'flex-start',
-                                    padding: '12px 14px',
-                                    background: '#18181F',
-                                    border: '1px solid rgba(255,255,255,0.05)',
-                                    borderRadius: 10,
-                                }}
-                            >
-                                <div style={{
-                                    width: 8, height: 8, borderRadius: '50%',
-                                    background: ins.dot, flexShrink: 0, marginTop: 5,
-                                }} />
-                                <div>
-                                    <p style={{ fontSize: 13, fontWeight: 600, marginBottom: 2 }}>{ins.title}</p>
-                                    <p style={{ fontSize: 12, color: '#9A9AAD', lineHeight: 1.5 }}>{ins.sub}</p>
-                                </div>
-                            </motion.div>
-                        ))}
-                    </div>
-                </motion.div>
-
-                {/* Quick actions */}
-                <motion.div
-                    initial={{ opacity: 0, y: 16 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.35, duration: 0.5 }}
-                    style={{
-                        background: '#111118',
-                        border: '1px solid rgba(255,255,255,0.07)',
-                        borderRadius: 16, padding: '22px',
-                    }}
-                >
-                    <p style={{ fontSize: 12, fontWeight: 600, color: '#9A9AAD', marginBottom: 16, letterSpacing: '0.5px' }}>
-                        JUMP TO
-                    </p>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                        {NAV.slice(1).map((item) => {
-                            const Icon = item.icon
-                            return (
-                                <motion.button
-                                    key={item.id}
-                                    whileHover={{ x: 4, background: `${item.color}10` }}
-                                    onClick={() => setActive(item.id)}
-                                    style={{
-                                        display: 'flex', alignItems: 'center', gap: 10,
-                                        padding: '11px 13px',
-                                        background: '#18181F',
-                                        border: '1px solid rgba(255,255,255,0.05)',
-                                        borderRadius: 10, cursor: 'pointer',
-                                        color: '#F0F0F5', fontSize: 13, fontWeight: 500,
-                                        textAlign: 'left', width: '100%',
-                                        fontFamily: 'Inter, sans-serif',
-                                        transition: 'background 0.2s',
-                                    }}
-                                >
-                                    <div style={{
-                                        width: 26, height: 26, borderRadius: 6,
-                                        background: `${item.color}20`,
-                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                        flexShrink: 0,
-                                    }}>
-                                        <Icon size={13} color={item.color} strokeWidth={2} />
-                                    </div>
-                                    {item.label}
-                                    <ChevronRight size={12} color="#9A9AAD" style={{ marginLeft: 'auto' }} />
-                                </motion.button>
-                            )
-                        })}
-                    </div>
-                </motion.div>
-            </div>
-        </motion.div>
-    )
-}
-
-// ─── PANEL ROUTER ─────────────────────────────────────────────────────────────
-function ActivePanel({ active, setActive }) {
-    const panels = {
-        overview: <Overview setActive={setActive} />,
-        health: <MoneyHealth />,
-        fire: <FirePlanner />,
-        tax: <TaxWizard />,
-        portfolio: <PortfolioXRay />,
-        couple: <CouplePlanner />,
-    }
-    return (
-        <AnimatePresence mode="wait">
-            <motion.div
-                key={active}
-                initial={{ opacity: 0, x: 18 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -18 }}
-                transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-            >
-                {panels[active]}
-            </motion.div>
-        </AnimatePresence>
-    )
-}
-
-// ─── DASHBOARD ───────────────────────────────────────────────────────────────
+// ─── DASHBOARD SHELL ─────────────────────────────────────────────────────────
 export default function Dashboard() {
-    const [active, setActive] = useState('overview')
+    const { pathname } = useLocation()
+
     return (
         <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.4, ease: 'easeOut' }}
+            transition={{ duration: 0.35, ease: 'easeOut' }}
             style={{
                 background: '#08080E', minHeight: '100vh',
                 display: 'flex',
@@ -453,11 +235,25 @@ export default function Dashboard() {
                 color: '#F0F0F5',
             }}
         >
-            <Sidebar active={active} setActive={setActive} />
+            <Sidebar />
+
             <div style={{ marginLeft: 228, flex: 1, display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
-                <Topbar active={active} />
-                <main style={{ flex: 1, overflowY: 'auto' }}>
-                    <ActivePanel active={active} setActive={setActive} />
+                <Topbar />
+
+                {/* Outlet renders the matched child route */}
+                <main style={{ flex: 1 }}>
+                    <AnimatePresence mode="wait">
+                        <motion.div
+                            key={pathname}
+                            initial={{ opacity: 0, x: 16 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: -16 }}
+                            transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+                            style={{ minHeight: '100%' }}
+                        >
+                            <Outlet />
+                        </motion.div>
+                    </AnimatePresence>
                 </main>
             </div>
         </motion.div>
